@@ -1,0 +1,20 @@
+{
+  "name": "stronghold-luck",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "自选商店外挂：为 Stronghold-Protocol 加上「商店里出什么由你挑」",
+  "scripts": {
+    "start": "node src/launcher.mjs",
+    "check": "node test/verify.mjs",
+    "check:e2e": "node test/verify-e2e.mjs",
+    "check:ui": "node test/verify-ui.mjs",
+    "check:diy-ui": "node test/verify-diy-ui.mjs",
+    "check:sandbox-ui": "node test/verify-sandbox-ui.mjs",
+    "check:unit-ui": "node test/verify-unit-ui.mjs",
+    "check:pace-ui": "node test/verify-pace-ui.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.12.0"
+  }
+}

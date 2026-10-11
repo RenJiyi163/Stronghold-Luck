@@ -1,0 +1,704 @@
+/* overlay.css — the pick-your-own shop panel. Loaded into the game's own document, so every token below is the
+   game's own (public/css/theme.css :root): 1rem = 100 design px at 1920×1080, scaled with the viewport. */
+
+.spmod {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  font-family: var(--font-cjk);
+  color: var(--text-hi);
+}
+.spmod[hidden] { display: none; }
+
+/* ---- the floating entry point (draggable; the position is kept per browser) -------------------------- */
+
+.spmod-fab {
+  position: fixed;
+  right: .10rem;
+  top: 38%;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: .05rem;
+  padding: .07rem .13rem;
+  font-size: .15rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--text-on-mint);
+  background: linear-gradient(180deg, var(--mint-400), var(--mint-600));
+  border: 1px solid var(--mint-700);
+  border-radius: .06rem;
+  box-shadow: 0 .04rem .18rem rgba(0, 0, 0, .5), 0 0 .24rem var(--mint-a35);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.spmod-fab:hover { background: linear-gradient(180deg, var(--mint-500), var(--mint-600)); }
+.spmod-fab:active { cursor: grabbing; }
+.spmod.is-open .spmod-fab { display: none; }
+
+/* ---- panel ------------------------------------------------------------------------------------------ */
+
+.spmod-panel {
+  /* the size is the player's: --spmod-w / --spmod-h are written by the panel's own size controls (and its corner grip) */
+  --spmod-w: min(10.4rem, 94vw);
+  --spmod-h: min(7.6rem, 90vh);
+  display: none;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--spmod-w);
+  max-width: 96vw;
+  /* until the player picks a size the panel hugs its content; a preset or the corner grip pins the height */
+  height: auto;
+  max-height: var(--spmod-h);
+  pointer-events: auto;
+  flex-direction: column;
+  background: var(--bg-1);
+  border: 1px solid var(--line-2);
+  border-radius: .08rem;
+  box-shadow: 0 .08rem .4rem rgba(0, 0, 0, .7);
+  overflow: hidden;
+}
+.spmod-panel.is-sized { height: var(--spmod-h); }
+/* the corner grip: drag it to size the panel; the size is kept per browser */
+.spmod-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: .26rem;
+  height: .26rem;
+  cursor: nwse-resize;
+  touch-action: none;
+  color: var(--text-dim);
+  background: linear-gradient(315deg, var(--line-2) 0 .06rem, transparent .06rem);
+  z-index: 2;
+}
+.spmod-grip:hover { color: var(--mint-500); background: linear-gradient(315deg, var(--mint-500) 0 .06rem, transparent .06rem); }
+.spmod.is-open .spmod-panel { display: flex; }
+.spmod.is-open::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 9, .62);
+  pointer-events: auto;
+}
+.spmod-panel { z-index: 1; }
+
+.spmod-head {
+  display: flex;
+  align-items: center;
+  gap: .12rem;
+  padding: .12rem .16rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.spmod-title { font-size: .2rem; font-weight: 700; letter-spacing: .04em; color: var(--mint-500); }
+.spmod-stat { font-size: .14rem; color: var(--text-lo); }
+.spmod-close {
+  margin-left: auto;
+  width: .3rem;
+  height: .3rem;
+  font-size: .2rem;
+  line-height: 1;
+  color: var(--text-lo);
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: .04rem;
+}
+.spmod-close:hover { color: var(--text-hi); border-color: var(--mint-500); }
+
+/* ---- slot tabs -------------------------------------------------------------------------------------- */
+
+.spmod-tabs {
+  display: flex;
+  gap: .06rem;
+  padding: .1rem .16rem 0;
+  flex-wrap: wrap;
+}
+.spmod-tab {
+  display: flex;
+  flex-direction: column;
+  gap: .02rem;
+  min-width: 1.05rem;
+  padding: .06rem .1rem;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: .05rem;
+  color: var(--text-md);
+}
+.spmod-tab b { font-size: .14rem; font-weight: 700; letter-spacing: .04em; }
+.spmod-tab span { font-size: .13rem; color: var(--text-lo); max-width: 1.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spmod-tab.is-on { border-color: var(--mint-500); background: var(--mint-900); }
+.spmod-tab.is-on b { color: var(--mint-400); }
+.spmod-tab.is-on span { color: var(--text-hi); }
+.spmod-tab.is-sold { opacity: .4; cursor: not-allowed; }
+.spmod-tab.is-blank span { color: var(--text-dim); }
+
+/* ---- toolbar: mode switch + the per-round budget ---------------------------------------------------- */
+
+.spmod-toolbar {
+  display: flex;
+  align-items: center;
+  gap: .1rem;
+  padding: .1rem .16rem 0;
+}
+.spmod-seg {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: .04rem;
+}
+.spmod-segbtn {
+  padding: .05rem .12rem;
+  font-size: .14rem;
+  color: var(--text-lo);
+  background: var(--bg-2);
+  border: 0;
+}
+.spmod-segbtn + .spmod-segbtn { border-left: 1px solid var(--line-2); }
+.spmod-segbtn:hover { color: var(--text-hi); }
+.spmod-segbtn.is-on { color: var(--text-on-mint); background: linear-gradient(180deg, var(--mint-400), var(--mint-600)); }
+.spmod-limitwrap { display: inline-flex; align-items: center; gap: .06rem; font-size: .14rem; color: var(--text-lo); }
+.spmod-limit {
+  width: .6rem;
+  padding: .04rem .06rem;
+  font-size: .14rem;
+  color: var(--text-hi);
+  background: var(--bg-0);
+  border: 1px solid var(--line-2);
+  border-radius: .04rem;
+}
+.spmod-limit:focus { border-color: var(--mint-500); }
+.spmod-quota { margin-left: auto; font-size: .14rem; color: var(--text-lo); }
+.spmod-quota.is-out { color: var(--red-premium); font-weight: 700; }
+
+/* ---- filters ---------------------------------------------------------------------------------------- */
+
+.spmod-body { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.spmod-filters {
+  display: flex;
+  align-items: center;
+  gap: .08rem;
+  padding: .1rem .16rem;
+}
+.spmod-search {
+  flex: 1;
+  min-width: 0;
+  padding: .06rem .1rem;
+  font-size: .15rem;
+  color: var(--text-hi);
+  background: var(--bg-0);
+  border: 1px solid var(--line-2);
+  border-radius: .04rem;
+}
+.spmod-search:focus { border-color: var(--mint-500); }
+.spmod-prof {
+  padding: .06rem .08rem;
+  font-size: .15rem;
+  color: var(--text-md);
+  background: var(--bg-0);
+  border: 1px solid var(--line-2);
+  border-radius: .04rem;
+}
+.spmod-hint { font-size: .14rem; color: var(--text-lo); }
+
+/* ---- the grid --------------------------------------------------------------------------------------- */
+
+.spmod-grid {
+  flex: 1 1 auto;
+  min-height: .8rem;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(.78rem, 1fr));
+  gap: .08rem;
+  padding: 0 .16rem .14rem;
+  align-content: start;
+}
+
+.spmod-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .02rem;
+  padding: .04rem .04rem .05rem;
+  text-align: center;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: .05rem;
+  overflow: hidden;
+  transition: transform var(--t-fast) var(--ease-out), border-color var(--t-fast);
+}
+.spmod-card:hover { transform: translateY(-2px); border-color: var(--mint-500); }
+.spmod-card.is-poor { opacity: .55; }
+.spmod-card.is-poor:hover { border-color: var(--line-2); }
+
+.spmod-art {
+  display: block;
+  width: 100%;
+  /* the portrait is a 180×360 half-body (assetUrls.js). A fixed short height cropped it to a band of forehead, so the
+     box follows the art's own 1:2 shape and nothing is cut off. */
+  aspect-ratio: 1 / 2;
+  height: auto;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: .03rem;
+  background: var(--bg-3);
+}
+.spmod-name {
+  font-size: .14rem;
+  font-weight: 600;
+  color: var(--text-hi);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spmod-meta { display: flex; align-items: center; justify-content: center; gap: .05rem; }
+.spmod-tier {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: .2rem;
+  height: .2rem;
+  padding: 0 .03rem;
+  font-size: .12rem;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--bg-0);
+  background: var(--tier-1);
+  border-radius: .03rem;
+}
+.spmod-price { font-size: .14rem; font-weight: 700; color: var(--gold); }
+
+.spmod-t2 .spmod-tier { background: var(--tier-2); }
+.spmod-t3 .spmod-tier { background: var(--tier-3); }
+.spmod-t4 .spmod-tier { background: var(--tier-4); }
+.spmod-t5 .spmod-tier { background: var(--tier-5); }
+.spmod-t6 .spmod-tier { background: var(--tier-6); }
+.spmod-t1 { border-bottom-color: var(--tier-1); }
+.spmod-t2 { border-bottom-color: var(--tier-2); }
+.spmod-t3 { border-bottom-color: var(--tier-3); }
+.spmod-t4 { border-bottom-color: var(--tier-4); }
+.spmod-t5 { border-bottom-color: var(--tier-5); }
+.spmod-t6 { border-bottom-color: var(--tier-6); }
+
+.spmod-pips { display: flex; justify-content: center; gap: .03rem; }
+.spmod-pips i { width: .06rem; height: .06rem; border-radius: 50%; background: var(--line-3); }
+.spmod-pips i.on { background: var(--mint-500); }
+
+.spmod-itemcard .spmod-art { object-fit: contain; padding: .04rem; aspect-ratio: 1 / 1; }
+
+/* ---- the name view: one row per card, no art ------------------------------------------------------- */
+
+.spmod-grid.is-name { grid-template-columns: repeat(auto-fill, minmax(2.05rem, 1fr)); gap: .04rem; }
+.spmod-row {
+  display: flex;
+  align-items: center;
+  gap: .06rem;
+  padding: .045rem .07rem;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-left: .04rem solid var(--tier-1);
+  border-radius: .04rem;
+  color: var(--text-md);
+}
+.spmod-row:hover { border-color: var(--mint-500); color: var(--text-hi); }
+.spmod-row.is-poor { opacity: .55; }
+.spmod-row .spmod-name { flex: 1 1 auto; min-width: 0; font-size: .14rem; }
+.spmod-row .spmod-tier { min-width: .18rem; height: .18rem; font-size: .11rem; }
+.spmod-row .spmod-price { font-size: .13rem; }
+.spmod-row .spmod-pips { gap: .02rem; }
+.spmod-row .spmod-pips i { width: .05rem; height: .05rem; }
+.spmod-row.is-locked { opacity: .5; border-left-color: var(--line-3); }
+.spmod-row--t1 { border-left-color: var(--tier-1); }
+.spmod-row--t2 { border-left-color: var(--tier-2); }
+.spmod-row--t3 { border-left-color: var(--tier-3); }
+.spmod-row--t4 { border-left-color: var(--tier-4); }
+.spmod-row--t5 { border-left-color: var(--tier-5); }
+.spmod-row--t6 { border-left-color: var(--tier-6); }
+
+/* ---- 自选编队 pieces + the level lock --------------------------------------------------------------- */
+
+.spmod-diy {
+  position: absolute;
+  left: .03rem;
+  top: .03rem;
+  padding: 0 .04rem;
+  font-size: .11rem;
+  font-weight: 700;
+  line-height: .16rem;
+  color: var(--text-on-mint);
+  background: var(--mint-600);
+  border-radius: .03rem;
+}
+.spmod-diy.is-inline { position: static; }
+.spmod-card.is-locked { opacity: .5; }
+.spmod-card.is-locked:hover { transform: none; border-color: var(--line); }
+.spmod-sizebtn { padding: .03rem .07rem; font-size: .12rem; color: var(--text-lo); background: var(--bg-2); border: 1px solid var(--line-2); border-radius: .03rem; }
+.spmod-sizebtn:hover { color: var(--text-hi); border-color: var(--mint-500); }
+.spmod-sizebtn.is-on { color: var(--text-on-mint); background: linear-gradient(180deg, var(--mint-400), var(--mint-600)); border-color: var(--mint-700); }
+.spmod-sizes { display: inline-flex; align-items: center; gap: .04rem; }
+.spmod-sizes > span { font-size: .13rem; color: var(--text-lo); }
+.spmod-headright { display: flex; align-items: center; gap: .08rem; margin-left: auto; }
+.spmod-headright .spmod-close { margin-left: .02rem; }
+.spmod-headright .spmod-segbtn { padding: .03rem .08rem; font-size: .12rem; }
+.spmod-headright .spmod-close { width: .26rem; height: .26rem; font-size: .16rem; }
+
+.spmod-empty { padding: .3rem; text-align: center; font-size: .15rem; color: var(--text-lo); }
+
+/* ---- battle speed (always up during a match, unlike the shop panel) --------------------------------- */
+
+.spmod-speed {
+  position: fixed;
+  right: .10rem;
+  top: 46%;
+  z-index: 2;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: .05rem;
+  padding: .06rem .08rem;
+  background: rgba(10, 16, 14, .84);
+  border: 1px solid var(--line-2);
+  border-radius: .05rem;
+  box-shadow: 0 .03rem .14rem rgba(0, 0, 0, .5);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+.spmod-speed[hidden] { display: none; }
+.spmod-speed:active { cursor: grabbing; }
+.spmod-speed.is-ok { border-color: var(--mint-500); }
+.spmod-speed.is-err { border-color: var(--red-premium); }
+.spmod-speed-label { font-size: .13rem; letter-spacing: .04em; color: var(--text-lo); }
+.spmod-speedbtn {
+  min-width: .34rem;
+  padding: .04rem .06rem;
+  font-size: .14rem;
+  font-weight: 700;
+  color: var(--text-md);
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: .04rem;
+}
+.spmod-speedbtn:hover { color: var(--text-hi); border-color: var(--mint-500); }
+.spmod-speedbtn.is-on {
+  color: var(--text-on-mint);
+  background: linear-gradient(180deg, var(--mint-400), var(--mint-600));
+  border-color: var(--mint-700);
+}
+
+/* ---- auto reverse (its own bar, same skin as the speed bar but its own classes, so the speed
+        selectors in the self-checks keep matching only the speed bar) ---------------------------------- */
+
+.spmod-auto {
+  position: fixed;
+  right: .10rem;
+  top: calc(46% + 1.2rem);
+  z-index: 2;
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .05rem;
+  padding: .06rem .08rem;
+  background: rgba(10, 16, 14, .84);
+  border: 1px solid var(--line-2);
+  border-radius: .05rem;
+  box-shadow: 0 .03rem .14rem rgba(0, 0, 0, .5);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+.spmod-auto[hidden] { display: none; }
+.spmod-auto:active { cursor: grabbing; }
+.spmod-auto :is(select, button, label, input) { cursor: pointer; }
+.spmod-auto.is-ok { border-color: var(--mint-500); }
+.spmod-auto.is-err { border-color: var(--red-premium); }
+.spmod-autolabel { font-size: .13rem; letter-spacing: .04em; color: var(--text-lo); white-space: nowrap; }
+.spmod-autosel,
+.spmod-autobtn {
+  padding: .04rem .06rem;
+  font-size: .13rem;
+  color: var(--text-md);
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: .04rem;
+}
+.spmod-autosel { max-width: 2.6rem; }
+.spmod-autobtn { min-width: .5rem; font-weight: 700; }
+.spmod-autobtn:disabled { opacity: .45; }
+.spmod-autobtn:hover:not(:disabled) { color: var(--text-hi); border-color: var(--mint-500); }
+.spmod-autosel:disabled { opacity: .45; }
+.spmod-autobtn.is-on {
+  color: var(--text-on-mint);
+  background: linear-gradient(180deg, var(--mint-400), var(--mint-600));
+  border-color: var(--mint-700);
+}
+.spmod-autochk { display: inline-flex; align-items: center; gap: .04rem; font-size: .13rem; color: var(--text-lo); white-space: nowrap; }
+.spmod-autochk input { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; }
+
+/* the tick list: a full-width row that wraps under the bar when the 目标 button opens it */
+.spmod-autotarget.is-empty { border-color: var(--red-premium); }
+.spmod-autotargetbox {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: .02rem;
+  max-height: 3.4rem;
+  overflow-y: auto;
+  padding-top: .04rem;
+  border-top: 1px solid var(--line-2);
+  margin-top: .02rem;
+}
+.spmod-autotargetbox[hidden] { display: none; }
+.spmod-autotargetnote { font-size: .115rem; color: var(--text-lo); opacity: .85; padding: .02rem 0 .01rem; white-space: nowrap; }
+.spmod-autotarget {
+  display: flex;
+  align-items: center;
+  gap: .04rem;
+  font-size: .13rem;
+  color: var(--text-md);
+  white-space: nowrap;
+  padding: .01rem .02rem;
+  border-radius: .03rem;
+}
+.spmod-autotarget:hover { background: var(--bg-2); }
+.spmod-autotarget input { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; flex: none; }
+.spmod-autotarget.is-locked { opacity: .5; }
+.spmod-autotargetname { flex: 1 1 auto; }
+.spmod-autotargetcls { font-style: normal; font-size: .11rem; color: var(--text-lo); opacity: .8; }
+.spmod-autotarget.is-deferred .spmod-autotargetcls { color: var(--warn-400, #e8a13a); }
+
+/* ---- the sandbox bar (its own classes, like the auto-reverse bar) ------------------------------------- */
+
+.spmod-sandbox {
+  position: fixed;
+  right: .10rem;
+  top: calc(46% + 2.1rem);
+  z-index: 2;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: .05rem;
+  padding: .06rem .08rem;
+  background: rgba(10, 16, 14, .84);
+  border: 1px solid var(--line-2);
+  border-radius: .05rem;
+  box-shadow: 0 .03rem .14rem rgba(0, 0, 0, .5);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+.spmod-sandbox[hidden] { display: none; }
+.spmod-sandbox:active { cursor: grabbing; }
+.spmod-sandbox :is(button, label, input) { cursor: pointer; }
+.spmod-sblabel { font-size: .13rem; letter-spacing: .04em; color: var(--text-lo); white-space: nowrap; }
+.spmod-sbchk { display: inline-flex; align-items: center; gap: .04rem; font-size: .13rem; color: var(--text-md); white-space: nowrap; }
+.spmod-sbchk input { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; }
+.spmod-sbbtn {
+  padding: .04rem .06rem;
+  font-size: .13rem;
+  font-weight: 700;
+  color: var(--text-md);
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: .04rem;
+}
+.spmod-sbbtn:hover { color: var(--text-hi); border-color: var(--mint-500); }
+
+/* ---- the sandbox page: 策略 + 地块 -------------------------------------------------------------------- */
+
+/* The sandbox page is taller than the panel (策略 + 地块 + 单位): the BODY scrolls, and its three blocks keep their natural
+   height (flex: 0 0 auto) instead of being squeezed to fit — otherwise flexbox shrinks them and the last one is clipped. */
+.spmod-sbbody { gap: .06rem; overflow-y: auto; padding-bottom: .14rem; }
+.spmod-sbbody > * { flex: 0 0 auto; }
+.spmod-sbhead { display: flex; align-items: center; gap: .1rem; padding: .08rem .16rem 0; }
+.spmod-sbhint { margin-left: auto; font-size: .13rem; color: var(--text-lo); }
+.spmod-sbsection { display: flex; flex-direction: column; gap: .05rem; padding: .08rem .16rem 0; }
+.spmod-sbtitle { font-size: .13rem; color: var(--text-lo); }
+.spmod-sbrow { display: flex; align-items: center; gap: .06rem; font-size: .14rem; color: var(--text-md); }
+.spmod-sbrow input[type='checkbox'] { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; }
+
+/* ---- the master switches (总开关) --------------------------------------------------------------------- */
+
+.spmod-enablerow {
+  display: grid;
+  grid-template-columns: .2rem 1fr;
+  align-items: center;
+  gap: .02rem .08rem;
+  padding: .05rem .02rem;
+  border-top: 1px solid var(--line-2);
+  cursor: pointer;
+}
+.spmod-enablerow input[type='checkbox'] { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; }
+.spmod-enablelabel { font-size: .14rem; color: var(--text-md); }
+.spmod-enablerow .spmod-hint { grid-column: 2; }
+/* a switch that is OFF dims its row: the state has to be readable without reading the checkbox */
+.spmod-enablerow input:not(:checked) ~ .spmod-enablelabel { color: var(--text-lo); text-decoration: line-through; }
+/* the 开关 tab marks itself when anything is off, so "why is nothing working" is answerable from the header */
+.spmod-headright .spmod-segbtn.is-off { color: var(--warn-400, #e8a13a); }
+.spmod-bands {
+  flex: 1 1 auto;
+  min-height: .8rem;
+  max-height: 2.4rem;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(2.9rem, 1fr));
+  gap: .04rem;
+  padding-bottom: .12rem;
+}
+.spmod-band {
+  display: flex;
+  align-items: center;
+  gap: .06rem;
+  padding: .045rem .08rem;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-left: .04rem solid var(--line-2);
+  border-radius: .04rem;
+  color: var(--text-md);
+}
+.spmod-band:hover { border-color: var(--mint-500); color: var(--text-hi); }
+.spmod-band.is-on { border-left-color: var(--mint-500); background: var(--mint-900); color: var(--text-hi); }
+.spmod-band.is-primary { border-left-color: var(--gold); }
+.spmod-bandname { font-size: .14rem; font-weight: 600; }
+.spmod-bandmeta { margin-left: auto; font-size: .12rem; color: var(--text-lo); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spmod-bandtag { flex: 0 0 auto; font-size: .11rem; color: var(--mint-400); }
+
+/* ---- the shop page: 阵营锁 (the shop's bond filter) ---------------------------------------------------- */
+
+.spmod-shopfilter { gap: .04rem; }
+.spmod-bondchips { display: flex; flex-wrap: wrap; gap: .04rem; }
+.spmod-bondchip {
+  padding: .03rem .07rem;
+  font-size: .12rem;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: .04rem;
+  color: var(--text-md);
+}
+.spmod-bondchip:hover { border-color: var(--mint-500); color: var(--text-hi); }
+.spmod-bondchip.is-on { border-color: var(--mint-500); background: var(--mint-900); color: var(--text-hi); }
+.spmod-sbhint.is-warn { color: var(--red-premium); font-weight: 600; }
+
+/* ---- the sandbox page: 单位（技能 / 技力 / 属性） ------------------------------------------------------ */
+
+.spmod-sbsub { display: flex; flex-direction: column; gap: .04rem; padding: 0 .16rem; }
+/* the operator picker: a short scrollable grid, searchable above it — the chess table is ~266 records long */
+.spmod-units {
+  max-height: 2.1rem;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(1.5rem, 1fr));
+  gap: .04rem;
+  padding: .02rem 0;
+}
+.spmod-unit {
+  display: flex;
+  align-items: center;
+  gap: .06rem;
+  padding: .035rem .07rem;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-left: .03rem solid var(--line-3);
+  border-radius: .04rem;
+  color: var(--text-md);
+  font-size: .13rem;
+  cursor: pointer;
+}
+.spmod-unit:hover { border-color: var(--mint-500); color: var(--text-hi); }
+.spmod-unit.is-on { border-left-color: var(--mint-500); background: var(--mint-900); color: var(--text-hi); }
+.spmod-unitname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spmod-unittier { flex: 0 0 auto; font-size: .11rem; color: var(--text-lo); }
+.spmod-statgrid { display: flex; flex-wrap: wrap; gap: .05rem .14rem; }
+.spmod-statfield { display: inline-flex; align-items: center; gap: .05rem; font-size: .13rem; color: var(--text-lo); white-space: nowrap; }
+.spmod-statfield input { width: .72rem; }
+
+/* ---- inline message --------------------------------------------------------------------------------- */
+
+.spmod-flash {
+  min-height: .3rem;
+  padding: .06rem .16rem;
+  font-size: .14rem;
+  color: var(--red-premium);
+  border-top: 1px solid transparent;
+}
+.spmod-flash:not(:empty) { border-top-color: var(--line); }
+.spmod-flash.is-ok { color: var(--mint-500); }
+
+/* ---- the 自选位 page (per-slot 盟约 / 特质) ------------------------------------------------------------- */
+
+.spmod-diyslot { border-top: 1px solid var(--line); padding-top: .1rem; }
+.spmod-diywho { font-size: .14rem; font-weight: 600; color: var(--mint-400); }
+.spmod-diywho.is-empty { font-weight: 400; color: var(--text-lo); }
+.spmod-garchips { display: flex; flex-wrap: wrap; gap: .04rem; }
+.spmod-garchip {
+  padding: .03rem .07rem;
+  font-size: .12rem;
+  font-family: ui-monospace, Consolas, monospace;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: .04rem;
+  color: var(--text-md);
+}
+.spmod-garchip:hover { border-color: var(--red-premium); color: var(--text-hi); }
+
+/* the 特质 picker: a short scrollable list, searchable above it — data/garrisons.json is ~250 records long */
+.spmod-gars {
+  max-height: 1.7rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: .02rem;
+}
+.spmod-gar {
+  display: flex;
+  align-items: baseline;
+  gap: .06rem;
+  padding: .035rem .06rem;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: .04rem;
+  color: var(--text-md);
+}
+.spmod-gar:hover { border-color: var(--mint-500); color: var(--text-hi); }
+.spmod-garev { flex: 0 0 auto; font-size: .11rem; color: var(--mint-400); min-width: .8rem; }
+.spmod-gartext { font-size: .13rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the 自选位 number editor: one block per assigned effect, one box per key that effect's record carries */
+.spmod-bbsection { display: flex; flex-direction: column; gap: .03rem; padding-top: .03rem; }
+.spmod-bbgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(1.5rem, 1fr));
+  gap: .03rem .06rem;
+}
+.spmod-statfield.is-on > span { color: var(--mint-400); }
+.spmod-garchip.is-on { border-color: var(--mint-500); color: var(--text-hi); }
+/* a 盟约 that does nothing when a piece carries it (绝技 counts 精锐, not members): shown but not clickable */
+.spmod-bondchip.is-dead { opacity: .4; cursor: not-allowed; text-decoration: line-through; }
+
+/* the 特质 picker, grouped by 触发时机, with the 棋子 each one comes from */
+.spmod-gargroup {
+  position: sticky;
+  top: 0;
+  padding: .04rem .04rem .02rem;
+  font-size: .12rem;
+  color: var(--mint-400);
+  background: var(--bg-1, var(--bg-2));
+}
+.spmod-garsrc { font-size: .11rem; color: var(--text-lo); margin-left: auto; white-space: nowrap; }
+.spmod-gar { align-items: flex-start; }
+.spmod-gartext { white-space: normal; }

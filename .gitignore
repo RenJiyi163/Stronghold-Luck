@@ -1,0 +1,15 @@
+# 运行时产物
+node_modules/
+logs/
+
+# 求解器是另一条研究线，不属于这个工具
+solver/
+
+# 杂项
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# 打法攻略（非工具本体，且来源存疑）
+简单攻略.txt

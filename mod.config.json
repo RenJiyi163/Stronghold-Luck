@@ -1,0 +1,9 @@
+{
+  "gameRoot": "D:\\Stronghold-Protocol",
+  "port": 3000,
+  "host": "127.0.0.1",
+  "openBrowser": true,
+  "pickLimitPerRound": 3,
+  "combatSpeed": 2,
+  "record": true
+}
