@@ -15,6 +15,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { findGame, saveGameRoot } from './find-game.mjs';
+import { canPick, pickGameDir } from './pick-game.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MOD_ROOT = path.resolve(HERE, '..');
@@ -44,6 +46,7 @@ function parseArgs(argv) {
     else if (a === '--port') out.port = Number(argv[++i]);
     else if (a === '--host') out.host = argv[++i];
     else if (a === '--game') out.gameRoot = argv[++i];
+    else if (a === '--no-pick') out.noPick = true;
     else if (a === '--speed') out.speed = Number(argv[++i]);
     else if (a === '--help' || a === '-h') out.help = true;
     else log.warn(`ignoring unknown argument ${a}`);
@@ -68,7 +71,8 @@ if (args.help) {
 
   --port <n>      监听端口（默认 3000 或 mod.config.json 的 port）
   --host <addr>   监听地址（默认 127.0.0.1，只允许本机访问）
-  --game <dir>    游戏目录（默认 mod.config.json 的 gameRoot）
+  --game <dir>    游戏目录（默认 mod.config.json 的 gameRoot，再不行自动探测）
+  --no-pick       找不到游戏目录时不弹选择框，直接报错（给脚本用）
   --no-open       不自动打开浏览器
   --vanilla       页面也不注入自选面板，等于原版游戏（排查用）
   --no-patch      页面注入面板但不打服务端补丁：用来确认补丁失效时面板会自己隐藏
@@ -80,16 +84,86 @@ if (args.help) {
 }
 
 const cfg = loadConfig();
-const gameRoot = path.resolve(args.gameRoot || cfg.gameRoot || 'D:\\Stronghold-Protocol');
 const port = Number.isInteger(args.port) && args.port >= 0 ? args.port : (Number.isInteger(cfg.port) ? cfg.port : 3000);
 const host = args.host || cfg.host || '127.0.0.1';
 const openBrowser = args.open === false ? false : cfg.openBrowser !== false;
 
-if (!fs.existsSync(path.join(gameRoot, 'server', 'index.js'))) {
-  log.error(`游戏目录不对：${gameRoot}`);
-  log.error('没有找到 server/index.js。改 mod.config.json 里的 gameRoot，或者用 --game <目录>。');
-  process.exit(1);
+// ---- game folder --------------------------------------------------------------------------------------
+
+/** 「这是不是游戏根」的唯一判据。 */
+const looksLikeGame = (dir) => !!dir && fs.existsSync(path.join(dir, 'server', 'index.js'));
+
+/**
+ * 命令行 → mod.config.json → 自动探测 → 弹框选。找不到返回 null。
+ * `--game` 明确给了但不对，就地报错退出：用户已经说了在哪，不该替他猜。
+ */
+function resolveGameRoot() {
+  if (args.gameRoot) {
+    const dir = path.resolve(args.gameRoot);
+    if (!looksLikeGame(dir)) {
+      log.error(`--game 指向的目录里没有 server/index.js：${dir}`);
+      process.exit(1);
+    }
+    return dir;
+  }
+
+  if (cfg.gameRoot) {
+    const dir = path.resolve(cfg.gameRoot);
+    if (looksLikeGame(dir)) return dir;
+    log.warn(`mod.config.json 里的 gameRoot 不对（${cfg.gameRoot}），继续找`);
+  }
+
+  const found = findGame({ modRoot: MOD_ROOT });
+  if (found) {
+    log.info(`自动找到游戏目录：${found}`);
+    return found;
+  }
+
+  // 猜不到就弹框。stdout 不是终端时（自检、被别的脚本调用）不弹，免得挂住不返回。
+  if (canPick() && !args.noPick && process.stdout.isTTY) {
+    log.info('没找到游戏目录，弹一个选择框。也可以改用 --game <目录>，或把游戏文件夹拖到 start.cmd 上。');
+    const picked = pickGameDir();
+    if (picked && looksLikeGame(picked)) {
+      try {
+        saveGameRoot(CONFIG_PATH, picked, cfg);
+        log.info(`已记住游戏目录：${picked}`);
+      } catch (e) {
+        log.warn(`游戏目录记住了，但没能写回 mod.config.json：${e.message}`);
+      }
+      return path.resolve(picked);
+    }
+    if (picked) log.warn(`选的目录里没有 server/index.js：${picked}`);
+  }
+
+  log.error('没找到 Stronghold-Protocol 游戏目录。三种给法：');
+  log.error('  1) 把游戏文件夹拖到 start.cmd 上');
+  log.error('  2) 把 mod.config.json 的 gameRoot 改成你的游戏目录');
+  log.error('  3) node src/launcher.mjs --game <目录>');
+  return null;
 }
+
+// 这份外挂是照哪个游戏版本写的。上游改了锚点，面板会自己隐藏（README「游戏更新了怎么办」）。
+// 先把版本号比一遍，用户就不用对着一个不亮的面板猜。
+const EXPECTED_GAME_VERSION = '0.2.2';
+
+function checkGameVersion(gameRoot) {
+  let version = null;
+  try {
+    version = JSON.parse(fs.readFileSync(path.join(gameRoot, 'package.json'), 'utf8')).version || null;
+  } catch { /* 读不到就跳过 */ }
+  if (!version) {
+    log.warn(`游戏的 package.json 读不到，没法确认版本（这份外挂是照 ${EXPECTED_GAME_VERSION} 写的）。`);
+    return;
+  }
+  if (version !== EXPECTED_GAME_VERSION) {
+    log.warn(`注意：这份外挂是照 Stronghold-Protocol ${EXPECTED_GAME_VERSION} 写的，你这份是 ${version}。`);
+    log.warn('  上游改动锚点时面板会整块不出现（启动日志里找 anchors not found）。');
+  }
+}
+
+const gameRoot = resolveGameRoot();
+if (!gameRoot) process.exit(1);
+checkGameVersion(gameRoot);
 
 // ---- mod assets --------------------------------------------------------------------------------------
 

@@ -10,10 +10,28 @@
 
 双击 `start.cmd`，浏览器会自动打开 `http://127.0.0.1:3000`。
 
+### 游戏装在哪儿，它自己找
+
+外挂不要求游戏在哪个盘。双击 `start.cmd` 之后，它按这个顺序找：
+
+1. `mod.config.json` 里的 `gameRoot`（填过就用它）；
+2. 自动探测：外挂旁边的 `Stronghold-Protocol`、当前目录、`C:` 到 `H:` 各盘根与常见的 `Games` / `SteamLibrary` 位置、桌面、下载、文档；
+3. 都没找到就**弹一个文件夹选择框**，你指到游戏文件夹（里面有 `server` 那个）就行。选完写进 `mod.config.json`，以后不再问。
+
+也可以自己指定，三种都行：
+
+- 把游戏文件夹**拖到 `start.cmd` 上**；
+- 改 `mod.config.json` 的 `gameRoot`（JSON 里反斜杠写两个：`"E:\\Games\\Stronghold-Protocol"`）；
+- 命令行 `node src/launcher.mjs --game "E:\Games\Stronghold-Protocol"`。
+
+**它会认游戏版本。** 不是 0.2.2 时启动时打一行提醒；上游改过锚点的话，面板会整块不出现（见「游戏更新了怎么办」）。
+
 命令行也行：
 
 ```
 npm start                      # = node src/launcher.mjs
+node src/launcher.mjs --game "E:\Games\Stronghold-Protocol"   # 临时指定游戏目录
+node src/launcher.mjs --no-pick     # 找不到游戏目录时不弹框，直接报错（给脚本用）
 node src/launcher.mjs --port 3001
 node src/launcher.mjs --no-open
 node src/launcher.mjs --vanilla     # 页面都不注入，等于原版
@@ -202,6 +220,8 @@ node src/launcher.mjs --speed 4     # 开局倍速（默认 mod.config.json 的 
 ```
 start.cmd
 src/launcher.mjs       起两个东西：游戏自己的服务器（只在 127.0.0.1 的随机端口）+ 一个前台 HTTP 服务
+src/find-game.mjs      游戏不在默认位置时，按一串常见路径去认（认 server/index.js）
+src/pick-game.mjs      都认不到就弹文件夹选择框，选中路径经临时文件回传（绕开控制台编码）
 src/server-patch.mjs   进程内给游戏打三处补丁
 public/overlay.js      浏览器里的面板（由前台服务注入到 index.html）
 public/overlay.css     面板样式（复用游戏自己的设计变量）
@@ -295,9 +315,11 @@ node test/verify-diy-slots.mjs     # 无头：自选位的盟约 / 特质 / 数�
 node test/verify-auto.mjs          # 无头真引擎：自动买卖走商店那条路（含总开关全关照跑、直购被拒、多目标共用一轮、免费刷与收费刷两套：闸门、抓什么、滚到什么时候停、买卖不亏的牌），9 项
 node test/verify-auto-ui.mjs       # 真浏览器：目标勾选表（只列本局协议里的卡、默认勾选、勾/取消跟着计数走、空勾选锁住启动键、点启动后服务端收到的就是勾的那几张），6 项
 node test/verify-diy-slots-ui.mjs  # 真浏览器：面板上配盟约 / 特质 / 数值，全选与默认，加自造位子并按阶挑人，把 1 阶自造位子买下来摆上场看盟约栏，再从「开关」页关掉自选位看服务端撤回，28 项
+node test/verify-findgame.mjs      # 无头：游戏目录的探测与配置写回（整棵树造在系统临时目录里，不碰真游戏），8 项
+node test/verify-pickgame.mjs      # 无头：选目录用的 PowerShell 脚本（拿 PowerShell 自己的解析器查语法，不真弹框），3 项
 ```
 
-前三个要用游戏自带的 `test/` 目录（`verify.mjs` 借它的对局脚手架，`verify-*.mjs` 借它的 e2e 客户端）。**发布包不带 `test/`**，只有 Git 仓库里有，所以从压缩包装的游戏跑不了这三条。其余各条都只用 `mod.config.json` 里的游戏目录：`verify-diy-ui.mjs`、`verify-sandbox-ui.mjs`、`verify-unit-ui.mjs`、`verify-auto-ui.mjs` 自己驱动页面，`verify-auto.mjs` 直接在引擎上打一局（虚拟时钟，不起服务器也不开浏览器）。
+前三个要用游戏自带的 `test/` 目录（`verify.mjs` 借它的对局脚手架，`verify-*.mjs` 借它的 e2e 客户端）。**发布包不带 `test/`**，只有 Git 仓库里有，所以从压缩包装的游戏跑不了这三条。其余各条都只用 `mod.config.json` 里的游戏目录：`verify-diy-ui.mjs`、`verify-sandbox-ui.mjs`、`verify-unit-ui.mjs`、`verify-auto-ui.mjs` 自己驱动页面，`verify-auto.mjs` 直接在引擎上打一局（虚拟时钟，不起服务器也不开浏览器）。`verify-findgame.mjs` 和 `verify-pickgame.mjs` 连游戏都不需要，整棵树造在系统临时目录里。
 
 它们都需 `npm i`（装的是 `puppeteer-core`，只用于自检，游戏运行时用不到）和一个 Chrome/Edge。截图会落在**游戏目录**的 `test/e2e/out/`（那是游戏自己的截图目录，已在它的 `.gitignore` 里）；外挂不会往游戏目录写别的任何东西。
 
@@ -318,3 +340,4 @@ node test/verify-diy-slots-ui.mjs  # 真浏览器：面板上配盟约 / 特质 
 - **盟约的数值不按位子**（见「自选位」一节）：一条盟约只有一个记录，改了就落在场上每一个带它的干员身上。特质是按位子各一份的。
 - **总开关管的是「从这一刻起」**：战斗已经开打的那一场，它装进去的策略、数值、地块解锁会打完这一场（下一场才干净）；沙盒策略叠起来时抬高的起手 LP 也收不回来，因为生命值已经花掉了，游戏里没有回收它的地方。
 - 只影响你自己的**独立模拟**。同盟模拟（联机）也能用，但那是你自己的选择。
+- **游戏目录记在 `mod.config.json` 的 `gameRoot`**。弹框选过之后会写进去，下次直接用；`--game` 和拖到 `start.cmd` 上只对这一次生效，不写回。
