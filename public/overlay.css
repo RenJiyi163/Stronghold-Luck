@@ -591,6 +591,18 @@
 .spmod-bondchip:hover { border-color: var(--mint-500); color: var(--text-hi); }
 .spmod-bondchip.is-on { border-color: var(--mint-500); background: var(--mint-900); color: var(--text-hi); }
 .spmod-sbhint.is-warn { color: var(--red-premium); font-weight: 600; }
+/* the 阵营锁 reading toggle (包含 / 仅限) — same chip look, a row above the bond chips */
+.spmod-filtermode { display: flex; flex-wrap: wrap; gap: .04rem; }
+.spmod-modebtn {
+  padding: .03rem .07rem;
+  font-size: .12rem;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: .04rem;
+  color: var(--text-md);
+}
+.spmod-modebtn:hover { border-color: var(--mint-500); color: var(--text-hi); }
+.spmod-modebtn.is-on { border-color: var(--mint-500); background: var(--mint-900); color: var(--text-hi); }
 
 /* ---- the sandbox page: 单位（技能 / 技力 / 属性） ------------------------------------------------------ */
 

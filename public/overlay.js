@@ -40,6 +40,8 @@ const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64;
 const isLimit = (v) => Number.isInteger(v) && v >= 0 && v <= 99;
 const isSpeed = (v) => Number.isInteger(v) && v >= 1 && v <= 16;
 const isIds = (v) => Array.isArray(v) && v.every(isId);
+/** 阵营锁 readings: 'has' = 带所选里任意一条即留（并集）, 'only' = 干员的盟约全落在所选内才留（子集）。 */
+const isFilterMode = (v) => v === 'has' || v === 'only';
 const isCap = (v) => v === null || (Number.isInteger(v) && v >= 0 && v <= 99);
 /** the whole unit config rides in one field; the server clamps it, this only has to look like the shape */
 const isUnitCfg = (v) => v === null || (typeof v === 'object' && !Array.isArray(v) && typeof v.on === 'boolean' && UNIT_SCOPES.includes(v.scope));
@@ -50,7 +52,7 @@ if (!Object.hasOwn(C2S, SPEED)) C2S[SPEED] = { n: isSpeed };
 if (!Object.hasOwn(C2S, BANDS)) C2S[BANDS] = { ids: isIds };
 if (!Object.hasOwn(C2S, PLACE)) C2S[PLACE] = { on: (v) => typeof v === 'boolean', cap: isCap };
 if (!Object.hasOwn(C2S, UNIT)) C2S[UNIT] = { cfg: isUnitCfg };
-if (!Object.hasOwn(C2S, SHOPFILTER)) C2S[SHOPFILTER] = { on: (v) => typeof v === 'boolean', bonds: isIds };
+if (!Object.hasOwn(C2S, SHOPFILTER)) C2S[SHOPFILTER] = { on: (v) => typeof v === 'boolean', bonds: isIds, mode: isFilterMode };
 // the 自选位 kit: the whole per-slot map rides in one field; the server normalizes (validates ids, clamps numbers)
 const isDiySlots = (v) => !!v && typeof v === 'object' && !Array.isArray(v)
   && Object.keys(v).length <= 64 && Object.values(v).every((s) => s === null || (!!s && typeof s === 'object' && !Array.isArray(s)));
@@ -81,9 +83,10 @@ const local = {
   // starts empty, and an empty config is a no-op on both sides (unit-rules.js unitHasEffect), so the panel never sits in a
   // "filled in but doing nothing" state. 清除 / 未启用 is how it gets turned off.
   unit: { on: true, pin: true, scope: 'one', id: null, skill: null, spCost: null, initSp: null, mult: 1, stats: {}, query: '' },
-  // the 阵营锁: the shop rolls only the chosen bonds (subset reading). Kept per browser like the rest; pushed once a
-  // match is under way (`ps.modShopFilter` is per-seat and resets with every match, so the push is per match).
-  filter: { on: false, bonds: [] },
+  // the 阵营锁: the chosen bonds (multi-select, as before) plus the reading that joins them — 'has' = 带所选里任意一条
+  // 即留（并集）, 'only' = 干员的盟约全落在所选内才留（子集）. Kept per browser like the rest; pushed once a match is
+  // under way (`ps.modShopFilter` is per-seat and resets with every match, so the push is per match).
+  filter: { on: false, bonds: [], mode: 'only' },
   // the 自选位 kit: per slot base id, the 盟约 it carries (`bonds` = replace, null = keep the operator's own) and the 特质
   // it bears. Kept per browser; pushed once a match is under way (the server holds it process-wide).
   // `extra` = the mod's own slots (更多位子): `{ k, tier, charId, skillIndex, uniEquipId }`, k from 1 and unique.
@@ -1365,6 +1368,10 @@ try {
   if (s && typeof s === 'object') {
     local.filter.on = !!s.on;
     if (Array.isArray(s.bonds)) local.filter.bonds = s.bonds.filter(isId);
+    // A build in between kept a single `bond`; fold it back into the set.
+    else if (typeof s.bond === 'string' && isId(s.bond)) local.filter.bonds = [s.bond];
+    // 'only' is the original 2026-10-10 reading, so a saved set from before the mode existed keeps its meaning.
+    if (isFilterMode(s.mode)) local.filter.mode = s.mode;
   }
 } catch { /* ignore */ }
 
@@ -1372,10 +1379,22 @@ function saveShopFilterPrefs() {
   try { localStorage.setItem(FILTER_KEY, JSON.stringify(local.filter)); } catch { /* ignore */ }
 }
 
+/** The chosen bonds' display names, out of the pool the server reported (falls back to the raw ids). */
+function filterBondNames(ids) {
+  const pool = view()?.shop?.modShopFilter?.pool;
+  const list = Array.isArray(pool) ? pool : [];
+  return ids.map((id) => {
+    const hit = list.find((b) => b.id === id);
+    return hit ? (hit.name || hit.id) : id;
+  });
+}
+
 function sendShopFilter() {
-  net.request(SHOPFILTER, { on: local.filter.on, bonds: local.filter.bonds }).then(
+  net.request(SHOPFILTER, { on: local.filter.on, bonds: local.filter.bonds, mode: local.filter.mode }).then(
     () => flash(local.filter.on
-      ? (local.filter.bonds.length ? `阵营锁已开：${local.filter.bonds.length} 个盟约` : '阵营锁已开（还没选盟约，先不过滤）')
+      ? (local.filter.bonds.length
+        ? `阵营锁已开：${local.filter.mode === 'has' ? '包含' : '仅限'} · ${filterBondNames(local.filter.bonds).join('+')}`
+        : '阵营锁已开（还没选盟约，先不过滤）')
       : '阵营锁已关', true),
     (e) => flash(errText(e)),
   );
@@ -1388,6 +1407,7 @@ function setShopFilterOn(on) {
   render(true);
 }
 
+/** Many bonds at a time; a chip toggles itself in and out of the set. */
 function toggleShopBond(id) {
   const i = local.filter.bonds.indexOf(id);
   if (i >= 0) local.filter.bonds.splice(i, 1);
@@ -1397,24 +1417,43 @@ function toggleShopBond(id) {
   render(true);
 }
 
-/** The 阵营锁 row: the switch, the bond chips, and the live admitted count (0 is called out — the shop would blank). */
+function setShopFilterMode(mode) {
+  if (!isFilterMode(mode) || local.filter.mode === mode) return;
+  local.filter.mode = mode;
+  saveShopFilterPrefs();
+  sendShopFilter();
+  render(true);
+}
+
+/** The 阵营锁 row: the switch, the reading (包含 / 仅限), the multi-select bond chips, and the live admitted count
+ *  (0 is called out — the shop would blank). */
 function shopFilterRow(v) {
   const sf = v.shop?.modShopFilter;
   if (!sf) return null;
   const on = !!local.filter.on;
   const chosen = new Set(local.filter.bonds);
+  const mode = isFilterMode(local.filter.mode) ? local.filter.mode : 'only';
   const pool = Array.isArray(sf.pool) ? sf.pool : [];
   const count = Number.isInteger(sf.count) ? sf.count : null;
+  const what = mode === 'has' ? '包含：带所选里任意一条就留' : '仅限：盟约全在所选里才留';
   const empty = chosen.size > 0 && count === 0;
   let hint = '还没选盟约（选之前不过滤）';
-  if (chosen.size) hint = `已选 ${chosen.size} 个盟约 · 当前可选 ${count ?? '?'} 名干员`;
-  if (empty) hint = `已选 ${chosen.size} 个盟约 · 当前可选 0 名（商店会刷空，再勾几条）`;
+  if (chosen.size) hint = `${what} · 已选 ${chosen.size} 条 · 当前可选 ${count ?? '?'} 名干员`;
+  if (empty) hint = `${what} · 已选 ${chosen.size} 条 · 当前可选 0 名（商店会刷空，再加几条或换成「包含」）`;
   return el('div', { class: 'spmod-sbsection spmod-shopfilter' },
     el('div', { class: 'spmod-sbtitle' }, '阵营锁'),
     el('label', { class: 'spmod-sbrow' },
       el('input', { type: 'checkbox', checked: on ? '' : null, onChange: (e) => setShopFilterOn(e.currentTarget.checked) }, null),
-      el('span', null, '商店只刷所选盟约的干员（干员的每条盟约都得在所选内；只管你这一座的自动刷新）'),
+      el('span', null, '商店只刷所选盟约的干员（盟约可多选；口径决定取并集还是取子集；只管你这一座的自动刷新）'),
     ),
+    on ? el('div', { class: 'spmod-filtermode' },
+      ...[['has', '包含'], ['only', '仅限']].map(([m, label]) => el('button', {
+        class: ['spmod-modebtn', mode === m && 'is-on'].filter(Boolean).join(' '),
+        type: 'button', 'data-mode': m,
+        title: m === 'has' ? '并集：干员带了所选里任意一条盟约就留下' : '子集：干员的每条盟约都在所选里才留下',
+        onClick: () => setShopFilterMode(m),
+      }, label)),
+    ) : null,
     on ? el('div', { class: 'spmod-bondchips' },
       ...pool.map((b) => el('button', {
         class: ['spmod-bondchip', chosen.has(b.id) && 'is-on'].filter(Boolean).join(' '),
@@ -2433,7 +2472,7 @@ const FEATURES = [
   ['sandboxUnit', '沙盒 · 单位', '改干员的技能、技力与属性。'],
   ['diy', '自选位 · 盟约 / 特质 / 数值', '给自选编队的位子配盟约、特质与数值。'],
   ['diyExtra', '自选位 · 自造位子', '自己造位子（1 到 6 阶）。'],
-  ['shopFilter', '阵营锁', '刷新只出所选盟约的干员。'],
+  ['shopFilter', '阵营锁', '商店只刷所选盟约的干员：盟约可多选；包含＝带所选任一条即留（并集），仅限＝盟约全在所选内才留（子集）。'],
 ];
 if (!Object.hasOwn(C2S, ENABLE)) {
   C2S[ENABLE] = { features: (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.values(v).every((x) => typeof x === 'boolean') };
@@ -2543,7 +2582,7 @@ function signature(v) {
   const expEcho = (v.priv?.modDiy?.extra || []).map((e) => `${e.k}:${e.pick?.charId || ''}:${e.pick?.skillIndex ?? ''}`).join(',');
   return [v.shop.level, v.priv.funds, v.pick.chess.length, v.pick.item.length, slots,
     local.tab, local.query, local.prof, local.open, local.mode, q.used, q.limit,
-    local.filter.on ? 1 : 0, local.filter.bonds.join(','), sf?.count ?? '', diyEcho, cfgEcho, expEcho].join('|');
+    local.filter.on ? 1 : 0, local.filter.bonds.join(','), local.filter.mode, sf?.count ?? '', diyEcho, cfgEcho, expEcho].join('|');
 }
 
 let lastSig = null;
@@ -2571,9 +2610,9 @@ function render(force = false) {
     const serverEmpty = !sf.on && (!Array.isArray(sf.bonds) || sf.bonds.length === 0);
     if ((filterPushedFor !== key || (serverEmpty && !localEmpty)) && !localEmpty) {
       filterPushedFor = key;
-      const mine = JSON.stringify({ on: !!local.filter.on, bonds: local.filter.bonds });
-      const server = JSON.stringify({ on: !!sf.on, bonds: Array.isArray(sf.bonds) ? sf.bonds : [] });
-      if (mine !== server) net.request(SHOPFILTER, { on: local.filter.on, bonds: local.filter.bonds }).catch(() => { filterPushedFor = null; });
+      const mine = JSON.stringify({ on: !!local.filter.on, bonds: local.filter.bonds, mode: local.filter.mode });
+      const server = JSON.stringify({ on: !!sf.on, bonds: Array.isArray(sf.bonds) ? sf.bonds : [], mode: sf.mode ?? 'only' });
+      if (mine !== server) net.request(SHOPFILTER, { on: local.filter.on, bonds: local.filter.bonds, mode: local.filter.mode }).catch(() => { filterPushedFor = null; });
     }
   }
   const sig = signature(v);

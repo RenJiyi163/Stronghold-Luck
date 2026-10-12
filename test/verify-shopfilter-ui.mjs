@@ -5,15 +5,16 @@
 // Boots the modded launcher, plays into the first PREP of a solo ABYSS match, then drives the panel and the game's own
 // socket:
 //
-//   面板   商店页有「阵营锁」那一行，服务端报得出本局的可选盟约；
-//   口径   子集读数：一名干员只有它的**每一条**盟约都在所选里才留下（[炎,灵巧] 在 {炎,灵巧,奥术} 下留下，
-//          [炎,维多利亚] 挡掉）；
-//   自动刷新  勾上之后，商店**自动刷新**出来的干员全是所选盟约的子集；勾之前那一roll 里能见到集合外的干员（阴性对照）；
+//   面板   商店页有「阵营锁」那一行，服务端报得出本局的可选盟约；盟约是多选（芯片可同时点亮多条）；
+//   口径   同一组所选盟约，两种读法（作者 2026-10-12 定的口径）：
+//           包含 has  — 并集：干员带了所选里任意一条就留（双盟约的也算）；
+//           仅限 only — 子集：干员的每条盟约都在所选里才留（这是 2026-10-10 那版读法）；
+//   自动刷新  两种读法下，商店**自动刷新**出来的干员分别满足各自的判据；打开之前那一 roll 里能见到两者都不认的干员
+//          （阴性对照）；
 //   范围   只管自动刷新：面板的自选/直购列表（modPickable.chess）一件都不少（作者 2026-10-10 的口径）。
 //
-// The bond set is derived from a piece the shop could actually roll right now (one pickable operator's own bonds, so the
-// subset test holds for it by construction), taking the one that admits the most — a filtered roll is then guaranteed to
-// land on something (`SharedPool.roll` is copy-weighted, so a non-empty eligible set never rolls empty).
+// 所选盟约取自「这一 roll 里买得到的干员」里某一名干员自己的盟约（子集判据对它天然成立），挑命中数最多的那一组，
+// 所以换到「包含」只会更宽、不会变空（SharedPool.roll 带副本权重，非空集合不会摇空）。
 //
 // Self-contained: the game's release package ships no `test/`, so this drives the page itself.
 
@@ -123,8 +124,9 @@ try {
   await sleep(1000);
 
   // The bond set to lock to, taken from what the shop could actually roll right now: one pickable operator's own bonds
-  // (its subset test then holds by construction), preferring the one that admits the most pieces so a filtered roll is
-  // never empty. Keep other operators OUT of it — that is what the negative control rests on.
+  // (its subset test then holds by construction), preferring the one that admits the most pieces under 仅限 so that
+  // switching to 包含 only ever widens the net. Keep other operators OUT of it — that is what the negative control
+  // rests on.
   const pickData = await page.evaluate(() => {
     const S = globalThis.__SP__;
     const pick = S.store.get().match.private.shop.modPickable;
@@ -132,10 +134,11 @@ try {
       const c = S.data.lookup('chess', id);
       return c && Array.isArray(c.bonds) ? c.bonds.slice() : [];
     };
-    const admitted = (set) => pick.chess.filter((id) => {
-      const bs = bondsOf(id);
-      return bs.length > 0 && bs.every((b) => set.includes(b));
-    }).length;
+    const passes = (bs, set, mode) => {
+      if (!bs.length) return false;
+      return mode === 'has' ? bs.some((b) => set.includes(b)) : bs.every((b) => set.includes(b));
+    };
+    const admitted = (set, mode) => pick.chess.filter((id) => passes(bondsOf(id), set, mode)).length;
     const seen = new Set();
     let best = null;
     for (const id of pick.chess) {
@@ -145,8 +148,8 @@ try {
       if (seen.has(key)) continue;
       seen.add(key);
       const set = [...bs].sort();
-      const cand = { set, n: admitted(set) };
-      if (!best || cand.n > best.n) best = cand;
+      const cand = { set, only: admitted(set, 'only'), has: admitted(set, 'has') };
+      if (!best || cand.only > best.only) best = cand;
     }
     return {
       best,
@@ -156,95 +159,152 @@ try {
   });
   assert.ok(pickData.best, '这一局没有可买的自选干员，换一局再试');
   const SET = pickData.best.set;
-  const setNames = await page.evaluate((ids) => ids.map((id) => globalThis.__SP__.data.lookup('bonds', id)?.name || id), SET);
-  console.log(`      锁定盟约：${setNames.join(' · ')}（这一档能出的 ${pickData.chessN} 名里，子集命中的有 ${pickData.best.n} 名）`);
+  const nameOf = (id) => page.evaluate((x) => globalThis.__SP__.data.lookup('bonds', x)?.name || x, id);
+  const setNames = await Promise.all(SET.map(nameOf));
+  console.log(`      所选盟约：${setNames.join(' + ')}（这一档 ${pickData.chessN} 名里：仅限命中 ${pickData.best.only} 名，包含命中 ${pickData.best.has} 名）`);
 
   /** The chess ids the shop is offering right now. */
   const shopChess = async () => ((await priv()).shop.slots || []).filter((x) => x && x.kind === 'chess').map((x) => x.id);
-  /** Which of `ids` the set does NOT admit (some bond of theirs is outside it). */
-  const outsideOf = (ids) => page.evaluate((s, list) => {
+  /** Which of `ids` do NOT pass the given reading. */
+  const outsideOf = (ids, set, mode) => page.evaluate((s, md, list) => {
     const S = globalThis.__SP__;
-    return list.filter((id) => {
+    const ok = (id) => {
       const c = S.data.lookup('chess', id);
       const bs = c && Array.isArray(c.bonds) ? c.bonds : [];
-      return !(bs.length > 0 && bs.every((b) => s.includes(b)));
-    });
-  }, SET, ids);
-  /** Refresh up to n times, collecting the shop's chess AFTER each roll; stops once the server refuses (gold runs out). */
+      if (!bs.length) return false;
+      return md === 'has' ? bs.some((b) => s.includes(b)) : bs.every((b) => s.includes(b));
+    };
+    return list.filter((id) => !ok(id));
+  }, set, mode, ids);
+  /** The bonds of `ids`, for a failure message that says what actually came out. */
+  const describe = (ids) => page.evaluate((list) => list.map((id) => {
+    const c = globalThis.__SP__.data.lookup('chess', id);
+    return `${id}:[${((c && c.bonds) || []).join(',')}]`;
+  }), ids);
+  /** Refresh up to n times, collecting the shop's chess after each SUCCESSFUL roll. A refused refresh (gold runs out)
+   *  leaves the previous roll on screen — reading it would mix in pieces rolled under the other reading, so it is
+   *  skipped rather than collected. The two readings share this match's gold, so n is small; `rolls` is reported. */
   const rollCollect = async (n) => {
-    const seen = [];
+    const seen = new Set();
+    let rolls = 0;
     for (let i = 0; i < n; i++) {
       const r = await send('g.refresh', {});
-      await sleep(450);
-      seen.push(...(await shopChess()));
       if (r !== 'ok') break;
+      rolls++;
+      await sleep(450);
+      for (const id of await shopChess()) seen.add(id);
     }
-    return seen;
+    return { ids: [...seen], rolls };
   };
+  const togglePanel = async (want) => {
+    await page.evaluate((w) => {
+      const b = document.querySelector('.spmod-shopfilter input[type=checkbox]');
+      if (b && b.checked !== w) b.click();
+    }, want);
+    await sleep(800);
+  };
+  const pickMode = async (mode) => {
+    await page.evaluate((m) => document.querySelector(`.spmod-modebtn[data-mode="${m}"]`)?.click(), mode);
+    await sleep(700);
+  };
+  /** Recompute the admitted count the long way, straight off the list the server itself builds. */
+  const expectCount = (set, mode) => page.evaluate((s, md) => {
+    const S = globalThis.__SP__;
+    const pick = S.store.get().match.private.shop.modPickable;
+    const ok = (id) => {
+      const c = S.data.lookup('chess', id);
+      const bs = c && Array.isArray(c.bonds) ? c.bonds : [];
+      if (!bs.length) return false;
+      return md === 'has' ? bs.some((b) => s.includes(b)) : bs.every((b) => s.includes(b));
+    };
+    return pick.chess.filter(ok).length + (pick.diy || []).filter((d) => d.ok && ok(d.id)).length;
+  }, set, mode);
 
   await check('商店页有「阵营锁」那一行，服务端报得出本局的可选盟约', async () => {
     assert.ok(await page.evaluate(() => !!document.querySelector('.spmod-shopfilter')), '面板上没有阵营锁那一行');
     assert.ok(pickData.poolBonds.length > 3, `服务端只报了 ${pickData.poolBonds.length} 个盟约`);
   });
 
-  await check('勾之前：开局那一roll 里能见到集合外的干员（阴性对照）', async () => {
+  await check('勾之前：开局那一roll 里能见到连「包含」都不认的干员（阴性对照）', async () => {
     const now = await shopChess();
     assert.ok(now.length > 0, '开局的商店一个干员都没有，换一局再试');
-    const outside = await outsideOf(now);
-    assert.ok(outside.length > 0, `开局那一roll（${now.join(', ')}）一名集合外的干员都没有，阴性对照不成立`);
+    const outside = await outsideOf(now, SET, 'has');
+    assert.ok(outside.length > 0, `开局那一roll（${now.join(', ')}）一名不带所选盟约的干员都没有，阴性对照不成立`);
   });
 
-  // Enable it the way a player would — the panel's own checkbox and bond chips — so the remembered state, the request
-  // it sends and what the server echoes all move together.
-  await check('面板上勾开、点选盟约：服务端收下，回显的可选人数与前端独立算出来的一致', async () => {
+  // Enable it the way a player would — the panel's own checkbox and bond chips — then flip only the reading, so the
+  // two phases differ in exactly one thing.
+  await check('面板上勾开、点亮多条盟约：服务端收下，回显的盟约集合与所选一致', async () => {
     const before = (await priv()).shop.modPickable.chess.length;
-    await page.evaluate(() => { const b = document.querySelector('.spmod-shopfilter input[type=checkbox]'); if (b && !b.checked) b.click(); });
-    await sleep(700);
+    await togglePanel(true);
+    await pickMode('only');
     for (const id of SET) {
       await page.evaluate((x) => document.querySelector(`.spmod-bondchip[data-bond="${x}"]`)?.click(), id);
       await sleep(300);
     }
     await sleep(900);
-    const p = await priv();
-    const sf = p.shop.modShopFilter;
+    const sf = (await priv()).shop.modShopFilter;
     assert.equal(sf.on, true, '回显里开关没打开');
-    assert.deepEqual([...sf.bonds].sort(), [...SET].sort(), `回显的盟约是 ${JSON.stringify(sf.bonds)}`);
-    // recompute the admitted count the long way, straight off the list the server itself builds
-    const expect = await page.evaluate((s) => {
-      const S = globalThis.__SP__;
-      const pick = S.store.get().match.private.shop.modPickable;
-      const ok = (id) => {
-        const c = S.data.lookup('chess', id);
-        const bs = c && Array.isArray(c.bonds) ? c.bonds : [];
-        return bs.length > 0 && bs.every((b) => s.includes(b));
-      };
-      return pick.chess.filter(ok).length + (pick.diy || []).filter((d) => d.ok && ok(d.id)).length;
-    }, SET);
-    assert.equal(sf.count, expect, `服务端报可选 ${sf.count} 名，前端算出来 ${expect} 名`);
-    assert.equal(p.shop.modPickable.chess.length, before, '自选/直购的列表跟着变窄了（口径是只管自动刷新）');
+    assert.deepEqual([...sf.bonds].sort(), [...SET].sort(), `回显的盟约是 ${JSON.stringify(sf.bonds)}，所选是 ${JSON.stringify(SET)}`);
+    assert.equal((await priv()).shop.modPickable.chess.length, before, '自选/直购的列表跟着变窄了（口径是只管自动刷新）');
   });
 
-  await check('面板把「当前可选 N 名」显示出来了', async () => {
+  // ---- 读法一：仅限（子集） -----------------------------------------------------------------------------
+  await check('仅限读法：可选人数与前端独立算的一致，面板也把它显示出来', async () => {
+    const sf = (await priv()).shop.modShopFilter;
+    assert.equal(sf.mode, 'only', `回显的读法是 ${sf.mode}`);
+    assert.equal(sf.count, await expectCount(SET, 'only'), `服务端报可选 ${sf.count} 名，前端算出来另一个数`);
     const t = await page.evaluate(() => document.querySelector('.spmod-shopfilter')?.textContent || '');
     assert.match(t, /当前可选 \d+ 名干员/, `面板上没有可选人数：${t.replace(/\s+/g, ' ').slice(0, 90)}`);
   });
 
-  await check('打开后自动刷新出的干员全是所选盟约的子集', async () => {
-    const all = [...new Set(await rollCollect(4))];
-    assert.ok(all.length > 0, '打开后几次刷新一个干员都没出');
-    const outside = await outsideOf(all);
-    assert.equal(outside.length, 0, `出了集合外的干员：${outside.join(', ')}`);
-    console.log(`      （刷新后见到的 ${all.length} 种干员全在所选盟约内）`);
+  await check('仅限读法：自动刷新出的干员，盟约全在所选里', async () => {
+    const { ids: all, rolls } = await rollCollect(2);
+    assert.ok(rolls > 0 && all.length > 0, '打开后一次刷新都没成（钱不够？）');
+    const outside = await outsideOf(all, SET, 'only');
+    if (outside.length) assert.fail(`出了盟约不全在所选里的干员：${(await describe(outside)).join(' ')}`);
+    console.log(`      （${rolls} 次刷新见到的 ${all.length} 种干员，盟约全在所选内）`);
+  });
+
+  // ---- 读法二：包含（并集）—— 芯片不动，只换口径 ---------------------------------------------------------
+  await check('包含读法：同一条盟约集合换成并集，放行的人数只增不减，且与前端算的一致', async () => {
+    await pickMode('has');
+    const sf = (await priv()).shop.modShopFilter;
+    assert.equal(sf.mode, 'has', `回显的读法是 ${sf.mode}`);
+    assert.deepEqual([...sf.bonds].sort(), [...SET].sort(), '换口径把所选盟约也改了');
+    assert.equal(sf.count, await expectCount(SET, 'has'), `服务端报可选 ${sf.count} 名，前端算出来另一个数`);
+    assert.ok(sf.count >= pickData.best.only, `包含 ${sf.count} 名 < 仅限 ${pickData.best.only} 名，并集没有变宽`);
+    console.log(`      （同一组盟约：仅限 ${pickData.best.only} 名 → 包含 ${sf.count} 名）`);
+  });
+
+  await check('包含读法：自动刷新出的干员，至少带所选里的一条盟约（双盟约的也在内）', async () => {
+    const { ids: all, rolls } = await rollCollect(3);
+    assert.ok(rolls > 0 && all.length > 0, '打开后一次刷新都没成（钱不够？）');
+    const outside = await outsideOf(all, SET, 'has');
+    if (outside.length) assert.fail(`出了哪条所选盟约都不带的干员：${(await describe(outside)).join(' ')}`);
+    const dual = await page.evaluate((s, list) => {
+      const S = globalThis.__SP__;
+      return list.filter((id) => {
+        const c = S.data.lookup('chess', id);
+        const bs = c && Array.isArray(c.bonds) ? c.bonds : [];
+        return bs.length > 1 && bs.some((b) => s.includes(b));
+      }).length;
+    }, SET, all);
+    console.log(`      （${all.length} 种干员都带所选盟约，其中双盟约 ${dual} 种——这些在「仅限」下会被挡）`);
   });
 
   await check('关掉阵营锁：服务端回显为关', async () => {
-    await page.evaluate(() => { const b = document.querySelector('.spmod-shopfilter input[type=checkbox]'); if (b && b.checked) b.click(); });
-    await sleep(900);
+    await togglePanel(false);
     assert.equal((await priv()).shop.modShopFilter.on, false, '服务端没关掉');
   });
 
   await check('不认识的盟约会被拒（服务端校验）', async () => {
-    const r = await send('g.modShopFilter', { on: true, bonds: ['bond_not_a_bond'] });
+    const r = await send('g.modShopFilter', { on: true, bonds: ['bond_not_a_bond'], mode: 'only' });
+    assert.notEqual(r, 'ok', `居然收下了：${r}`);
+  });
+
+  await check('不认识的口径会被拒（服务端校验）', async () => {
+    const r = await send('g.modShopFilter', { on: true, bonds: SET, mode: 'loose' });
     assert.notEqual(r, 'ok', `居然收下了：${r}`);
   });
 } catch (e) {

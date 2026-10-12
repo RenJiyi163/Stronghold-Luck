@@ -125,9 +125,13 @@ const isAutoTargets = (v) => Array.isArray(v) && v.length > 0 && v.length <= MAX
  *  8, the engine has none — handleBands bounds the set by the match's own allowed strategies anyway). */
 const isIdList = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string' && x.length > 0 && x.length <= 64);
 const isDeployCap = (v) => v === null || (Number.isInteger(v) && v >= 0 && v <= 99);
-/** the shop bond filter payload: the 阵营锁 switch plus the bond ids it keeps. */
+/** the shop bond filter payload: the 阵营锁 switch, the bond ids it keeps, and which reading joins them (has | only). */
+const FILTER_MODES = ['has', 'only'];
+const isFilterMode = (v) => FILTER_MODES.includes(v);
 const isShopFilter = (v) => !!v && typeof v === 'object' && !Array.isArray(v)
-  && typeof v.on === 'boolean' && isIdList(v.bonds);
+  && typeof v.on === 'boolean'
+  && isIdList(v.bonds)
+  && isFilterMode(v.mode);
 const isPlainObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 /**
  * The 自选位 payload: `{ slots: { [slotBaseId]: { bonds?, addBonds?, garrisons? } | null } }`. A garrison entry is an id
@@ -297,7 +301,7 @@ export async function installServerPatch(gameRoot, log = console, opts = {}) {
     log.info(`registered intent ${UNIT_TYPE}`);
   }
   if (!Object.hasOwn(C2S, SHOPFILTER_TYPE)) {
-    C2S[SHOPFILTER_TYPE] = { on: isBool, bonds: isIdList };
+    C2S[SHOPFILTER_TYPE] = { on: isBool, bonds: isIdList, mode: isFilterMode };
     log.info(`registered intent ${SHOPFILTER_TYPE}`);
   }
   if (!Object.hasOwn(C2S, DIY_TYPE)) {
@@ -1772,7 +1776,7 @@ function rollbackFeature(match, state, key) {
       try { if (ps.__modDiyOff) refreshDiyStock(ps, ps.__modDiyOff); } catch { /* stock refresh is best-effort */ }
     }
   } else if (key === 'shopFilter') {
-    for (const ps of seats) ps.modShopFilter = { on: false, bonds: [] };
+    for (const ps of seats) ps.modShopFilter = { on: false, bonds: [], mode: 'only' };
   }
   for (const ps of seats) { try { ps.recompute?.(); } catch { /* best effort */ } }
 }
@@ -2006,33 +2010,49 @@ function itemEligibility(ps, id, ERR) {
 //   * the AUTOMATIC roll only — the panel's 自选/直购 list is left alone (he explicitly did not want it locked);
 //   * this seat only — the setting rides on `ps.modShopFilter`, so the AI seats (same code, different seat) are a
 //     no-op;
-//   * the STRICT subset reading — an operator is kept only when EVERY one of its bonds is in the chosen set. So
-//     under {炎, 灵巧, 奥术} the piece [炎, 维多利亚] is dropped and [炎, 灵巧] is kept (odds are narrow on
-//     purpose; the panel shows the live admitted count so a selection that empties the shop is visible up front).
+//   * a slot the filter leaves empty STAYS empty (`roll` returns null and `rollShop` already accepts null slots) —
+//     that is the lock working, so there is no fallback.
+//
+// 2026-10-12, the author's second pass: keep the MULTI-bond chips, and put the reading on top of them as a second
+// axis. (A first cut collapsed both to a single bond; the author shot that down — the multi-select is the thing he
+// builds with, and the reading is what he was missing.) The two readings pick which way the chosen set is joined:
+//
+//   * mode 'has'  — 并集, 带所选里任意一条即留. The wide net: under {拉特兰, 迅捷} every 拉特兰 piece and every 迅捷
+//     piece passes, 能天使 (拉特兰+迅捷) included.
+//   * mode 'only' — 子集, 干员的盟约全都落在所选内才留. The narrow net (this is the 2026-10-10 reading, unchanged):
+//     under {拉特兰, 迅捷} a pure-拉特兰 or pure-迅捷 piece passes and 能天使 does too, but a 拉特兰+维多利亚 piece is
+//     dropped. Pick a single bond and it degenerates to "只留纯单盟约".
+//
+// Both axes are the author's; the panel shows the live admitted count so a selection that empties the shop is
+// visible before it bites.
 //
 // The seam is `PlayerState.prototype._rollChessSlot` (server/match/player/economy.js:63): three lines that hand
 // `{ maxTier, extra }` to `SharedPool.roll`, which already takes a `filter` — the very mechanism the game's own
 // bond grants use (choices.js:484-491, builtinMeta.js:54). Re-implementing those three lines is the cheapest
 // injection point; wrapping `pool.roll` instead would need a "which seat is rolling" side channel, since the pool
 // is shared and seat-blind. `extra` (this seat's own 自选编队 stock) goes through the same filter, so a 自选
-// operator outside the chosen bonds stops appearing too. A slot the filter leaves empty STAYS empty (`roll`
-// returns null and `rollShop` already accepts null slots) — that is the lock working, so there is no fallback.
+// operator outside the chosen bonds stops appearing too.
 // -----------------------------------------------------------------------------------------------------
 
 /** The seat's active filter, or null when it is off / empty (an empty set must not blank the shop by accident). */
 function activeShopFilter(ps) {
   const f = ps?.modShopFilter;
   if (!f || !f.on || !Array.isArray(f.bonds) || !f.bonds.length) return null;
-  return f;
+  return { bonds: f.bonds, mode: isFilterMode(f.mode) ? f.mode : 'only' };
 }
 
-/** `SharedPool.roll`'s `filter(id, entry)`: keep only chess EVERY one of whose bonds is in `bonds`. */
-const bondSubset = (ps, bonds) => {
+/**
+ * `SharedPool.roll`'s `filter(id, entry)` for the chosen bond set:
+ *   'has'  — 并集: the operator carries AT LEAST ONE of the chosen bonds.
+ *   'only' — 子集: EVERY one of the operator's bonds is in the chosen set.
+ */
+const bondFilter = (ps, bonds, mode) => {
   const set = new Set(bonds);
   return (cid) => {
     const c = ps.gd.chess(cid);
     const bs = c && Array.isArray(c.bonds) ? c.bonds : null;
-    return !!bs && bs.length > 0 && bs.every((b) => set.has(b));
+    if (!bs || !bs.length) return false;
+    return mode === 'has' ? bs.some((b) => set.has(b)) : bs.every((b) => set.has(b));
   };
 };
 
@@ -2065,8 +2085,8 @@ function bondPool(ps) {
 
 /** How many DISTINCT operators the filter admits right now (same guards as the roll: in pool, tier ≤ level, copies
  *  left; plus this seat's 自选编队 stock). Lets the panel warn before a selection empties the shop. */
-function shopFilterCount(ps, bonds) {
-  const keep = bondSubset(ps, bonds);
+function shopFilterCount(ps, bonds, mode) {
+  const keep = bondFilter(ps, bonds, mode);
   const level = ps.shop?.level ?? 1;
   let n = 0;
   for (const id of ps.gd.visibleChess || []) {
@@ -2082,15 +2102,16 @@ function shopFilterCount(ps, bonds) {
   return n;
 }
 
-/** What the panel reads: this seat's 阵营锁, the bonds it may name, and the live admitted count. */
+/** What the panel reads: this seat's 阵营锁 (bonds + mode), the bonds it may name, and the live admitted count. */
 function shopFilterView(ps) {
   const f = ps?.modShopFilter;
   const on = !!(f && f.on);
   const bonds = f && Array.isArray(f.bonds) ? f.bonds : [];
-  return { on, bonds, pool: bondPool(ps), count: on && bonds.length ? shopFilterCount(ps, bonds) : null };
+  const mode = f && isFilterMode(f.mode) ? f.mode : 'only';
+  return { on, bonds, mode, pool: bondPool(ps), count: on && bonds.length ? shopFilterCount(ps, bonds, mode) : null };
 }
 
-/** g.modShopFilter { on, bonds } — the 阵营锁. Not billed to the round's budget. */
+/** g.modShopFilter { on, bonds, mode } — the 阵营锁. Not billed to the round's budget. */
 function handleShopFilter(match, playerId, msg, state, ERR) {
   if (!state.enable.shopFilter) return fail(ERR.BAD_TARGET, '阵营锁已关闭（总开关）');
   const seat = seatFor(match, playerId);
@@ -2103,7 +2124,7 @@ function handleShopFilter(match, playerId, msg, state, ERR) {
     if (!gd.bond(id)) return fail(ERR.BAD_TARGET, `没有这个盟约（${id}）`);
     if (!bonds.includes(id)) bonds.push(id);
   }
-  ps.modShopFilter = { on: !!msg.on, bonds };
+  ps.modShopFilter = { on: !!msg.on, bonds, mode: msg.mode };
   try { ps.dirty?.(); match.flush(); } catch (e) { match.reportError?.('modShopFilter', e); }
   return OK;
 }
@@ -2119,7 +2140,7 @@ function installShopFilter({ PlayerState, log }) {
     const id = this.m.pool.roll(this.m.rngShop, {
       maxTier: this.shop.level,
       extra,
-      filter: bondSubset(this, f.bonds),
+      filter: bondFilter(this, f.bonds, f.mode),
     });
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
   };

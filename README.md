@@ -69,12 +69,16 @@ node src/launcher.mjs --speed 4     # 开局倍速（默认 mod.config.json 的 
 
 商店页多了一行**「阵营锁」**。勾开它、再点几条盟约，**商店自动刷新**出的干员就只剩这些盟约的了。想打炎国加灵巧加奥术，就勾这三条，别的一律不出。
 
-- **判定是子集**：一名干员的**每一条**盟约都得在你勾的这几条里才出现。勾了 {炎, 灵巧, 奥术}，`[炎,灵巧]` 留下，`[炎,维多利亚]` 挡掉（它带着你没勾的维多利亚）。
+**盟约可以勾多条，口径分两种。** 全游戏 266 名干员里有 162 名带两条盟约，所以勾得越多，两种口径的差别越大：
+
+- **包含（并集）**：干员带了所选里**任意一条**就出现。勾 {拉特兰, 迅捷}，能天使 `[拉特兰,迅捷]` 出现，纯拉特兰的也出现。
+- **仅限（子集）**：干员的**每一条**盟约都得在你勾的这几条里才出现。同样勾 {拉特兰, 迅捷}，能天使留下，`[拉特兰,维多利亚]` 挡掉（它带着你没勾的维多利亚）。**只勾一条时，仅限就等于「只出纯单盟约的干员」。**
+
 - **一行「当前可选 N 名」告诉你这个组合还买得到几名干员**。这个数受调度中心等级和卡池剩余份数限制，所以同一组盟约在前期和后期不一样。**选成 0 会标红**，那一回合的商店会刷空。
 - **只管商店的自动刷新。** 面板里的自选/直购列表**不跟着变窄**，你依旧能挑任意买得起的干员买。自动倒转也照旧。
 - **只管你自己那一座。** 三个 AI 队友的商店不受影响。
 - **空槽是正常结果**：过滤后没有可出的干员时那个槽就是空的，不会退回全盟约。
-- **自选编队的干员也一并过滤**：你在「自选编队」里挑的那几名，如果盟约不在所选里，商店也不会再刷他们。
+- **自选编队的干员也一并过滤**：你在「自选编队」里挑的那几名，如果盟约不过所选与口径，商店也不会再刷他们。
 - 装备不受影响（它没有盟约）。
 - 设置记在这个浏览器里，进新对局自动带上（和每回合上限、倍速一个做法）。换一组盟约不必等下一局，改完接着刷新就生效。
 
@@ -243,7 +247,7 @@ test/                  三层自检
 | `Match.prototype.start` | 每局开始时把记住的倍速写回 `gameSpeed`，所以倍速跨局保留 |
 | `Match.prototype.scaled` | 过场等待：游戏那三段固定等待读的是 `timerScale` 而不是 `gameSpeed`，所以倍速动不了它们。这里把**恰好等于** `DELAYS.COMBAT_END` / `SETTLE` / `ROUND_START`（1500 / 3000 / 2000 ms）的那几个值按 `倍速 ÷ 2` 缩短，别的 `scaled` 调用一律不碰（boss 结果宽限那类时间是等正确结果用的）；只在 `soloUntimed` 的单人局生效 |
 | `EffectDispatcher.prototype.dispatch` | 沙盒的额外策略：每段策略的效果就是注册在 `band:<id>` 下的一段处理函数，游戏每次派发只按唯一的 `ps.bandId` 取一段。这里在原有的那一次之后，把额外策略各自的 handler 也用**它自己的 source** 再各调一次（source 只影响提示文案）。**鸭爵**是个例外：它的换敌效果注册在全局键 `global:bands_ducklord` 下（不是 `band:`），判据读各座位实时的 `bandId`，所以额外策略里看不见它。同一个包装里对 `onBattleStart` 单独补跑这一段：调用期间把持鸭爵座位的 `bandId` 遮成鸭爵、跑完还原；主策略已经是鸭爵时跳过（原本那一次对每个座位都已成立） |
-| `PlayerState.prototype._rollChessSlot` | 阵营锁：商店抽牌走 `SharedPool.roll(rng, { maxTier, extra })`，它本来就收一个 `filter`（游戏自己的盟约抽牌用的就是它）。这里把原方法那三行重写一遍、把子集过滤折进 `filter`。`extra`（本座位的自选编队）走同一套过滤；过滤后没得可出就返回 `null`，`rollShop` 本来就允许空槽。只有 `ps.modShopFilter` 打开的座位有这层，AI 队友天然 no-op |
+| `PlayerState.prototype._rollChessSlot` | 阵营锁：商店抽牌走 `SharedPool.roll(rng, { maxTier, extra })`，它本来就收一个 `filter`（游戏自己的盟约抽牌用的就是它）。这里把原方法那三行重写一遍、把所选盟约按口径（并集 / 子集）折进 `filter`。`extra`（本座位的自选编队）走同一套过滤；过滤后没得可出就返回 `null`，`rollShop` 本来就允许空槽。只有 `ps.modShopFilter` 打开的座位有这层，AI 队友天然 no-op |
 | `Match.prototype._applyBand` | 起手 LP：它是唯一设 `ps.lp` 的地方，多选时改成取所选里最大的 |
 | `Match.prototype.deployMapFor` | 地块解锁：判定链是「图块 legend → buildDeployMap → canPlace → PlayerState._legal」，而撤回那一步（`_evictIllegal`）走的也是 `_legal`。所以只放宽这一张图就够，不需要碰判定函数。被装置占掉的格子照旧排除，高台照旧只收远程 |
 | `PlayerState.prototype.deployCap` | 部署上限：在游戏自己的数上取一个下限（`get deployCap()` 是从 `PlayerBasics` 继承来的，用 `Object.defineProperty` 盖一层） |
@@ -309,7 +313,7 @@ node test/verify-diy-ui.mjs   # 真浏览器：当场配一份自选编队再打
 node test/verify-sandbox-ui.mjs # 真浏览器：叠策略（含效果真的跑到的正面证据）、地块解锁的阴性对照与回合切换后不被撤回，18 项
 node test/verify-unit-ui.mjs  # 真浏览器：改技能/技力/属性，含三档作用目标、别的干员不动的阴性对照，以及开战后那颗棋子真的带着新数值，12 项
 node test/verify-pace-ui.mjs  # 真浏览器：装备不占额度（含阴性对照），以及结算等待在 2× 是 3 秒、8× 缩到四分之一，8 项
-node test/verify-shopfilter-ui.mjs # 真浏览器：阵营锁（子集读数、阴性对照、只管自动刷新、自选列表不受限），7 项
+node test/verify-shopfilter-ui.mjs # 真浏览器：阵营锁（盟约多选、包含/仅限两种读数各验一遍、阴性对照、只管自动刷新、自选列表不受限），10 项
 node test/verify-duck-extra.mjs    # 无头：鸭爵当副策略时也换敌（真 dispatch + 桩 match），6 项
 node test/verify-diy-slots.mjs     # 无头：自选位的盟约 / 特质 / 数值，自造位子，以及总开关的撤回（真 GameData + DataSource + setDiy，桩 match），25 项
 node test/verify-auto.mjs          # 无头真引擎：自动买卖走商店那条路（含总开关全关照跑、直购被拒、多目标共用一轮、免费刷与收费刷两套：闸门、抓什么、滚到什么时候停、买卖不亏的牌），9 项
