@@ -128,6 +128,29 @@ function el(tag, props = null, ...kids) {
 
 const clear = (n) => { while (n.firstChild) n.removeChild(n.firstChild); return n; };
 
+// ---- the master switches: one place that answers "is this group on" ----------------------------------
+//
+// The SERVER is what acts on the switches (it refuses that group's intents and takes back what is already in effect).
+// The panel has to follow it, or a switched-off group lingers: the 自造位子 are composed HERE from `local.diy.extra` and
+// injected into the game's own 自选编队 screen, so without this a switch that is off still draws the slots the server
+// already rolled back — visible, but refusing every pick.
+//
+// A group reads as on only when BOTH sides say so: the panel's own switch (`local.enable`, the 总开关 page's memory,
+// which loads further down — before then everything is on, the server's own default) and the server's echo
+// (`view.modEnable`, so a reload or a second tab shows what the server actually honours). Either one saying off hides
+// the group at once, which is the point.
+function enableOn(k) {
+  const mem = local.enable;
+  if (mem && mem[k] === false) return false;
+  const s = store.get()?.match?.private?.modEnable;
+  if (s && s[k] === false) return false;
+  return true;
+}
+
+/** Where a switched-off group's controls would be: a line saying why they are gone. */
+const offNote = (label) => el('div', { class: 'spmod-sbsection spmod-offnote' },
+  el('span', { class: 'spmod-hint' }, `「${label}」已被总开关关掉，这一组整个不生效；到「开关」页把它打开。`));
+
 /** Show or hide a draggable bar; a bar that becomes visible is first pulled back inside the window. */
 function showBar(bar, show) {
   bar.hidden = !show;
@@ -491,7 +514,7 @@ function saveUnitPrefs() {
 
 /** Adopt the config into this tab's sim (the browser half; the server half goes out with sendUnits). */
 function applyUnitCfg() {
-  unitPatcher.set(local.unit.on ? normalizeUnitCfg(local.unit) : null);
+  unitPatcher.set(enableOn('sandboxUnit') && local.unit.on ? normalizeUnitCfg(local.unit) : null);
 }
 
 function sendUnits() {
@@ -908,7 +931,10 @@ function drawSandboxPage(v) {
     el('label', { class: 'spmod-sbrow' }, el('span', null, '部署上限'), capInput),
   );
 
-  panel.append(el('div', { class: 'spmod-body spmod-sbbody' }, head, placeBox, bandsBox, drawUnitsSection()));
+  panel.append(el('div', { class: 'spmod-body spmod-sbbody' }, head,
+    enableOn('sandboxPlace') ? placeBox : offNote('沙盒 · 地块解锁'),
+    enableOn('sandboxBands') ? bandsBox : offNote('沙盒 · 策略叠加'),
+    enableOn('sandboxUnit') ? drawUnitsSection() : offNote('沙盒 · 单位')));
 }
 
 // ---- battle speed -------------------------------------------------------------------------------------
@@ -1801,6 +1827,9 @@ function editExtra(k, patch) {
 
 /** Adopt the kit into this tab's own sim (the browser half; the server half goes out with sendDiy). */
 function applyDiyCfg() {
+  // the whole kit (盟约 / 特质 / 数值) is the `diy` group: switch it off and this tab's sim goes back to the game's own
+  // records too, so it agrees with the server (which rolled the same thing back).
+  if (!enableOn('diy')) { diyPatcher.set(new Map()); return; }
   const map = new Map();
   const tables = slotTables();
   for (const [slotId, raw] of Object.entries(local.diy.slots)) {
@@ -1813,25 +1842,28 @@ function applyDiyCfg() {
 /** The configs worth sending: a slot with nothing set yet is left out, so the server never has to clear it. */
 function diyPayload() {
   const slots = {};
+  const exOn = enableOn('diyExtra'); // the 自造位子 group
+  const kitOn = enableOn('diy');     // the 盟约 / 特质 / 数值 group
   // only slots the server can actually build: the game's own four, plus the mod ones that already have an operator
-  // (a kit sent for a slot with no piece is refused outright, which would flash an error at the author for nothing)
+  // (a kit sent for a slot with no piece is refused outright, which would flash an error at the author for nothing).
+  // A group the master switch has turned off contributes nothing, so the payload matches what the server will honour.
   const known = new Set(allSlots().map((s) => slotBaseId(s.slotId)));
-  for (const e of local.diy.extra) if (e.charId) known.add(slotBaseId(extraSlotId(e.k, false)));
-  for (const [slotId, raw] of Object.entries(local.diy.slots)) {
+  if (exOn) for (const e of local.diy.extra) if (e.charId) known.add(slotBaseId(extraSlotId(e.k, false)));
+  if (kitOn) for (const [slotId, raw] of Object.entries(local.diy.slots)) {
     if (known.has(slotBaseId(slotId)) && normalizeSlotCfg(raw, slotTables())) {
       slots[slotBaseId(slotId)] = { bonds: raw.bonds, addBonds: raw.addBonds, garrisons: raw.garrisons, bondBb: raw.bondBb };
     }
   }
-  const extra = local.diy.extra
+  const extra = (exOn ? local.diy.extra : [])
     .filter((e) => e.charId)
     .map((e) => ({ k: e.k, tier: e.tier, pick: { charId: e.charId, skillIndex: e.skillIndex ?? null, uniEquipId: e.uniEquipId ?? null } }));
   // the game's own slots keep their pick (`room.diy`); the panel only says which skill / 模组 to carry
   const skills = {};
-  for (const [slotId, idx] of Object.entries(local.diy.skills)) {
+  if (kitOn) for (const [slotId, idx] of Object.entries(local.diy.skills)) {
     if (Number.isInteger(idx) && known.has(slotBaseId(slotId))) skills[slotBaseId(slotId)] = idx;
   }
   const mods = {};
-  for (const [slotId, id] of Object.entries(local.diy.mods)) {
+  if (kitOn) for (const [slotId, id] of Object.entries(local.diy.mods)) {
     if (known.has(slotBaseId(slotId))) mods[slotBaseId(slotId)] = id || null;
   }
   return { slots, extra, skills, mods };
@@ -1943,7 +1975,7 @@ applyDiyCfg(); // this tab's own sim follows whatever was remembered, before any
 //     the same two).
 
 /** The extra slots as the browser holds them: `{ k, tier }` pairs (the pick is sent separately in diyPayload). */
-const extraSlotsNow = () => local.diy.extra.map((e) => ({ k: e.k, tier: e.tier }));
+const extraSlotsNow = () => (enableOn('diyExtra') ? local.diy.extra.map((e) => ({ k: e.k, tier: e.tier })) : []);
 let extraGen = -1;
 let extraChessCache = null;
 let extraTableCache = null;
@@ -2389,13 +2421,17 @@ function drawDiyPage(v) {
   const slots = allSlots();
   const extraRows = local.diy.extra.map((e) => ({ slotId: extraSlotId(e.k, false), tier: e.tier, shopLevel: e.tier, extra: e }));
   const openDef = local.diy.open === 'default';
-  const body = el('div', { class: 'spmod-body spmod-sbbody' },
+  // the 自选位 kit (盟约 / 特质 / 数值) is the `diy` group; the 自造位子 are the `diyExtra` group. When a switch is off
+  // its section is replaced by a note, so a group the server rolled back never sits there looking usable.
+  const kit = enableOn('diy') ? [
     el('div', { class: 'spmod-sbsection' },
       el('div', { class: 'spmod-sbtitle' }, '自选位'),
       el('span', { class: 'spmod-hint' },
         '点盟约给这个位子配上（可多选）；「替换」是只算你勾的，「叠加」是在干员本来的盟约之上再加。谁坐在这个位子上谁就吃这一套，换人不变。'),
     ),
     ...(slots.length ? slots.map((s) => diySlotRow(v, s)) : [el('p', { class: 'spmod-empty' }, '这局的数据里没有自选位。')]),
+  ] : [offNote('自选位 · 盟约 / 特质 / 数值')];
+  const extras = enableOn('diyExtra') ? [
     el('div', { class: 'spmod-sbsection' },
       el('div', { class: 'spmod-sbrow' },
         el('span', { class: 'spmod-sbtitle' }, `自造位子（${extraRows.length}）`),
@@ -2432,8 +2468,8 @@ function drawDiyPage(v) {
       extraRows.length ? null : el('span', { class: 'spmod-hint' }, '还没有自造位子。加一个，挑好阶位和干员就行。'),
     ),
     ...extraRows.map((s) => diySlotRow(v, s)),
-  );
-  panel.append(body);
+  ] : [offNote('自选位 · 自造位子')];
+  panel.append(el('div', { class: 'spmod-body spmod-sbbody' }, ...kit, ...extras));
 }
 
 let diyPushedFor = null;
@@ -2491,16 +2527,24 @@ function sendEnable() {
 }
 function allOff() { return FEATURES.every(([k]) => !local.enable[k]); }
 function anyOff() { return FEATURES.some(([k]) => !local.enable[k]); }
+/** After a switch flips: drop the 自造位子 caches and re-adopt the sim halves this tab runs itself. */
+function applySwitches() {
+  bumpExtra();
+  applyDiyCfg();
+  applyUnitCfg();
+}
 function setEnable(k, on) {
   local.enable[k] = !!on;
   saveEnable();
   sendEnable();
+  applySwitches();
   render(true);
 }
 function setAllEnable(on) {
   for (const [k] of FEATURES) local.enable[k] = !!on;
   saveEnable();
   sendEnable();
+  applySwitches();
   render(true);
 }
 
@@ -2745,13 +2789,22 @@ function drawPanel(v) {
     }, el('b', null, label), el('span', null, slot?.sold ? '已售出' : cur)));
   }
 
-  panel.append(head, tabs, toolbar(v, q));
-  const sfRow = shopFilterRow(v);
-  if (sfRow) panel.append(sfRow);
-
-  const isItem = local.tab >= v.pick.chessSlots;
-  if (isItem) drawItemPicker(v);
-  else drawChessPicker(v);
+  panel.append(head);
+  // the shop page is the `shop` group (挑干员进槽位 / 直购 / 额度); the 阵营锁 row under it is `shopFilter`
+  if (enableOn('shop')) {
+    panel.append(tabs, toolbar(v, q));
+    if (enableOn('shopFilter')) {
+      const sfRow = shopFilterRow(v);
+      if (sfRow) panel.append(sfRow);
+    } else {
+      panel.append(offNote('阵营锁'));
+    }
+    const isItem = local.tab >= v.pick.chessSlots;
+    if (isItem) drawItemPicker(v);
+    else drawChessPicker(v);
+  } else {
+    panel.append(offNote('自选商店 / 直购 / 额度'));
+  }
 
   panel.append(el('div', { class: 'spmod-flash', id: 'spmod-flash' }));
   panel.append(grip); // every draw starts from an empty panel (`clear`), so the drag grip is put back last, on top

@@ -704,6 +704,52 @@ try {
     await sleep(1500);
     assert.equal(await page.evaluate(() => globalThis.__SP__.store.get().match.private.modEnable?.diy), true, '打开了但服务端没跟上');
   });
+  // The 自造位子 are composed ON THE CLIENT and injected into the game's own 自选编队 screen, so switching the group off
+  // has to stop the client injecting them too — not merely stop the server accepting new ones. This is the regression:
+  // the slots used to linger after the switch went off (visible, but refusing every pick).
+  await check('总开关：关掉「自造位子」，面板和这一局的数据里都不再有它', async () => {
+    assert.ok(await clickText('^自选位$', '.spmod-segbtn'), '表头里没有「自选位」页签');
+    await sleep(900);
+    await page.evaluate(() => document.querySelector('.spmod-sbbtn[data-diyadd]')?.click());
+    await sleep(1000);
+    await page.evaluate(() => {
+      const inp = document.querySelector('input[data-diypickquery]');
+      if (inp) { inp.value = '预备干员'; inp.dispatchEvent(new Event('input', { bubbles: true })); }
+    });
+    await sleep(800);
+    assert.equal(await page.evaluate(() => {
+      const el = document.querySelector('.spmod-unit[data-diyop="char_601_cguard"]');
+      if (!el) return 'no candidate';
+      el.click();
+      return 'ok';
+    }), 'ok', '挑不到预备干员-近卫');
+    await sleep(1800);
+    const id = await page.evaluate(() => Object.keys(globalThis.__SP__.store.get().match.private.diy || {}).find((x) => x.startsWith('mod_diy_')));
+    assert.ok(id, '自造位子没落到这一座');
+    const carried = () => page.evaluate((x) => !!globalThis.__SP__.data.get('chess')?.[x], id);
+    assert.ok(await carried(), '前置：本机的 chess 表里本该挂着这个自造位子');
+
+    assert.ok(await clickText('^开关$', '.spmod-segbtn'), '表头里没有「开关」页签');
+    await sleep(900);
+    await page.evaluate(() => document.querySelector('.spmod-enablerow[data-enable="diyExtra"] input')?.click());
+    await sleep(2200);
+    const st = await page.evaluate(() => globalThis.__SP__.store.get().match.private);
+    assert.equal((st.modDiy?.extra || []).length, 0, `服务端还留着 extra：${JSON.stringify(st.modDiy?.extra)}`);
+    assert.equal(st.modEnable?.diyExtra, false, `服务端回显没跟上：${st.modEnable?.diyExtra}`);
+    assert.equal(await carried(), false, '本机的 chess 表里还挂着那个自造位子（游戏界面会照样把它画出来）');
+    assert.ok(await clickText('^自选位$', '.spmod-segbtn'), '表头里没有「自选位」页签');
+    await sleep(900);
+    assert.equal(await page.evaluate(() => !!document.querySelector('.spmod-sbbtn[data-diyadd]')), false, '关掉之后面板还留着「＋ 加一个位子」');
+    assert.equal(await page.evaluate(() => document.querySelectorAll('.spmod-offnote').length > 0), true, '关掉之后那一节没有换成说明文字');
+
+    // turning it back on brings the group (and its kept config) back
+    assert.ok(await clickText('^开关$', '.spmod-segbtn'), '表头里没有「开关」页签');
+    await sleep(900);
+    await page.evaluate(() => document.querySelector('.spmod-enablerow[data-enable="diyExtra"] input')?.click());
+    await sleep(2200);
+    assert.equal(await carried(), true, '重新打开后自造位子没回来');
+    assert.equal(await page.evaluate(() => globalThis.__SP__.store.get().match.private.modEnable?.diyExtra), true, '打开了但服务端没跟上');
+  });
   await page.evaluate(() => { localStorage.removeItem('spmod.diySlots'); localStorage.removeItem('spmod.enable'); });
 } catch (e) {
   fail++;

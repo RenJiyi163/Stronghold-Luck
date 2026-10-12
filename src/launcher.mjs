@@ -144,7 +144,7 @@ function resolveGameRoot() {
 
 // 这份外挂是照哪个游戏版本写的。上游改了锚点，面板会自己隐藏（README「游戏更新了怎么办」）。
 // 先把版本号比一遍，用户就不用对着一个不亮的面板猜。
-const EXPECTED_GAME_VERSION = '0.2.2';
+const EXPECTED_GAME_VERSION = '0.2.5';
 
 function checkGameVersion(gameRoot) {
   let version = null;

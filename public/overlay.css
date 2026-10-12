@@ -525,6 +525,9 @@
 .spmod-sbhead { display: flex; align-items: center; gap: .1rem; padding: .08rem .16rem 0; }
 .spmod-sbhint { margin-left: auto; font-size: .13rem; color: var(--text-lo); }
 .spmod-sbsection { display: flex; flex-direction: column; gap: .05rem; padding: .08rem .16rem 0; }
+/* where a switched-off group's controls would be: the ordinary hint row, marked with an accent bar so it reads as a
+   stand-in rather than as another control */
+.spmod-sbsection.spmod-offnote { border-left: .02rem solid var(--warn-400, #e8a13a); padding-left: .1rem; margin-top: .06rem; }
 .spmod-sbtitle { font-size: .13rem; color: var(--text-lo); }
 .spmod-sbrow { display: flex; align-items: center; gap: .06rem; font-size: .14rem; color: var(--text-md); }
 .spmod-sbrow input[type='checkbox'] { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; }

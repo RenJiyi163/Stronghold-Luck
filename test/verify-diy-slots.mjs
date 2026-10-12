@@ -376,11 +376,11 @@ await check('总开关：关掉「自选位」，盟约改回原样', async () =
 await check('总开关：关掉之后连设置也不接受（入口就拒）', async () => {
   const w = start(world(), { [SLOT5]: PICK5 });
   setFeatures(w, { shopFilter: false });
-  const res = Match.prototype.handle.call(w.m, 'p_0', { t: 'g.modShopFilter', on: true, bonds: [] });
+  const res = Match.prototype.handle.call(w.m, 'p_0', { t: 'g.modShopFilter', on: true, bonds: [], mode: 'only' });
   assert.ok(res && res.error, '阵营锁关掉之后还接受了设置');
   // and the switch is read live: turning it back on lets the same intent through
   setFeatures(w, { shopFilter: true });
-  const back = Match.prototype.handle.call(w.m, 'p_0', { t: 'g.modShopFilter', on: true, bonds: [] });
+  const back = Match.prototype.handle.call(w.m, 'p_0', { t: 'g.modShopFilter', on: true, bonds: [], mode: 'only' });
   assert.deepEqual(back, { ok: true }, `重新打开之后仍被拒：${JSON.stringify(back)}`);
 });
 
