@@ -12,6 +12,13 @@ on:
         description: "把 APK 挂到这个 Release 标签上（留空就只当构建产物）"
         required: false
         default: ""
+  # Also on a push that touches the app, so iterating on android/ does not need a dispatch — and so
+  # the build runs on a working branch before any of it reaches the default branch.
+  push:
+    branches: [master, main, "android-*"]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-apk.yml"
 
 permissions:
   contents: write
