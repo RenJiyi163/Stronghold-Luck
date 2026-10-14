@@ -16,7 +16,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { findGame, saveGameRoot } from './find-game.mjs';
-import { canPick, pickGameDir } from './pick-game.mjs';
+import { canPick, canPrompt, pickGameDir, promptGameDir } from './pick-game.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MOD_ROOT = path.resolve(HERE, '..');
@@ -97,7 +97,7 @@ const looksLikeGame = (dir) => !!dir && fs.existsSync(path.join(dir, 'server', '
  * 命令行 → mod.config.json → 自动探测 → 弹框选。找不到返回 null。
  * `--game` 明确给了但不对，就地报错退出：用户已经说了在哪，不该替他猜。
  */
-function resolveGameRoot() {
+async function resolveGameRoot() {
   if (args.gameRoot) {
     const dir = path.resolve(args.gameRoot);
     if (!looksLikeGame(dir)) {
@@ -119,7 +119,24 @@ function resolveGameRoot() {
     return found;
   }
 
-  // 猜不到就弹框。stdout 不是终端时（自检、被别的脚本调用）不弹，免得挂住不返回。
+  // 猜不到就问一句。Windows 上是文件夹选择框，macOS / Linux 上没有那个对话框，改成在终端里问。
+  // stdout 不是终端时（自检、被别的脚本调用）都不问，免得挂住不返回。
+  if (canPrompt() && !args.noPick && !canPick()) {
+    log.info('没找到游戏目录，直接输入一个。也可以改用 --game <目录>。');
+    const typed = await promptGameDir();
+    if (typed && looksLikeGame(typed)) {
+      const dir = path.resolve(typed);
+      try {
+        saveGameRoot(CONFIG_PATH, dir, cfg);
+        log.info(`已记住游戏目录：${dir}`);
+      } catch (e) {
+        log.warn(`游戏目录记住了，但没能写回 mod.config.json：${e.message}`);
+      }
+      return dir;
+    }
+    if (typed) log.warn(`那个目录里没有 server/index.js：${typed}`);
+  }
+
   if (canPick() && !args.noPick && process.stdout.isTTY) {
     log.info('没找到游戏目录，弹一个选择框。也可以改用 --game <目录>，或把游戏文件夹拖到 start.cmd 上。');
     const picked = pickGameDir();
@@ -136,7 +153,9 @@ function resolveGameRoot() {
   }
 
   log.error('没找到 Stronghold-Protocol 游戏目录。三种给法：');
-  log.error('  1) 把游戏文件夹拖到 start.cmd 上');
+  log.error(process.platform === 'win32'
+    ? '  1) 把游戏文件夹拖到 start.cmd 上'
+    : '  1) 把外挂和游戏放成并排的同级目录（游戏目录名里带 stronghold 即可自动找到）');
   log.error('  2) 把 mod.config.json 的 gameRoot 改成你的游戏目录');
   log.error('  3) node src/launcher.mjs --game <目录>');
   return null;
@@ -144,7 +163,7 @@ function resolveGameRoot() {
 
 // 这份外挂是照哪个游戏版本写的。上游改了锚点，面板会自己隐藏（README「游戏更新了怎么办」）。
 // 先把版本号比一遍，用户就不用对着一个不亮的面板猜。
-const EXPECTED_GAME_VERSION = '0.2.5';
+const EXPECTED_GAME_VERSION = '0.2.6';
 
 function checkGameVersion(gameRoot) {
   let version = null;
@@ -161,7 +180,7 @@ function checkGameVersion(gameRoot) {
   }
 }
 
-const gameRoot = resolveGameRoot();
+const gameRoot = await resolveGameRoot();
 if (!gameRoot) process.exit(1);
 checkGameVersion(gameRoot);
 

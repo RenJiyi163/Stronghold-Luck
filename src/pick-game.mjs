@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
 
 // 脚本带 BOM 写盘：PowerShell 5.1 只对带 BOM 的 .ps1 按 UTF-8 解，否则里面的中文提示会乱码。
@@ -26,6 +27,25 @@ if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
 
 export function canPick() {
   return process.platform === 'win32';
+}
+
+// On macOS and Linux there is no FolderBrowserDialog to open, and no start.cmd to drop a folder on. A
+// terminal question is what is left, and it is what a command-line user would expect anyway. Same
+// contract as pickGameDir: a path, or null when there is nobody to ask.
+export function canPrompt() {
+  return !!process.stdin.isTTY && !!process.stdout.isTTY;
+}
+
+/** Ask for the directory on the terminal. Returns null when there is no interactive terminal. */
+export function promptGameDir() {
+  if (!canPrompt()) return Promise.resolve(null);
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question('游戏目录（里面要有 server 文件夹，留空取消）：', (answer) => {
+      rl.close();
+      resolve(answer.trim() || null);
+    });
+  });
 }
 
 /** 弹框选一个目录。返回绝对路径；用户取消或环境不允许时返回 null。 */

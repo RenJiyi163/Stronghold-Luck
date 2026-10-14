@@ -246,6 +246,43 @@ const MIN_H = 3.4;
 /** the game's root font-size: rem → px, so a dragged size is stored in real pixels */
 const remPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
+// The panel was sized for a desktop: on a phone everything in it came out at ~40% of the size it was drawn at, and
+// the rows and chips were too small to hit with a finger. Two different things are at work, so two different fixes:
+//
+//   * the TEXT rides the game's own text root (--t, 设置 →「文字大小」) and never drops below its 大 step (76px), which is
+//     css/overlay.css, nothing to do here;
+//   * the LAYOUT (paddings, min-widths, grid columns) stays on the layout root, which the game clamps at 40px on a
+//     phone, so it needs a hand-written larger set.
+//
+// This puts `spmod-touch` on <html> where that set applies: a coarse pointer, or a layout root small enough that the
+// panel's own 14-design-px text would land under ~9px (under ~1230×690 CSS px). Kept current as the window changes.
+const coarsePointer = () => {
+  try { return !!(matchMedia?.('(pointer: coarse)')?.matches || matchMedia?.('(any-pointer: coarse)')?.matches); }
+  catch { return false; }
+};
+// The layout root is clamp(40px, min(100vw/19.2, 100vh/10.8), 240px), so "the root is small" is exactly a viewport
+// condition: it is below 64px once the window is under 1229×692. Watched as media queries rather than off a `resize`
+// event, because a query's change event fires on the condition itself — a plain window resize does not always reach
+// the handler (the same emulated resize that moves the root font can land before the new value is readable).
+const SMALL_W = matchMedia('(max-width: 1229px)');
+const SMALL_H = matchMedia('(max-height: 692px)');
+const COARSE = matchMedia('(pointer: coarse)');
+const ANY_COARSE = matchMedia('(any-pointer: coarse)');
+function applyTouchLayout() {
+  const el = document?.documentElement;
+  if (!el) return;
+  const small = SMALL_W.matches || SMALL_H.matches || remPx() < 64;
+  try { el.classList.toggle('spmod-touch', small || coarsePointer()); } catch { /* ignore */ }
+}
+for (const mq of [SMALL_W, SMALL_H, COARSE, ANY_COARSE]) {
+  if (typeof mq.addEventListener === 'function') mq.addEventListener('change', applyTouchLayout);
+  else if (typeof mq.addListener === 'function') mq.addListener(applyTouchLayout);   // Safari < 14
+}
+applyTouchLayout();
+addEventListener('resize', applyTouchLayout, { passive: true });
+// the game re-lays-out a beat after a rotation settles (device.js); this rides along with it
+addEventListener('orientationchange', () => { applyTouchLayout(); setTimeout(applyTouchLayout, 400); });
+
 function loadPrefs() {
   try {
     const s = JSON.parse(localStorage.getItem(SIZE_KEY) || 'null');

@@ -22,7 +22,7 @@
   align-items: center;
   gap: .05rem;
   padding: .07rem .13rem;
-  font-size: .15rem;
+  font-size: calc(.15 * var(--spmod-t, 1rem));
   font-weight: 700;
   letter-spacing: .06em;
   color: var(--text-on-mint);
@@ -95,13 +95,13 @@
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
 }
-.spmod-title { font-size: .2rem; font-weight: 700; letter-spacing: .04em; color: var(--mint-500); }
-.spmod-stat { font-size: .14rem; color: var(--text-lo); }
+.spmod-title { font-size: calc(.2 * var(--spmod-t, 1rem)); font-weight: 700; letter-spacing: .04em; color: var(--mint-500); }
+.spmod-stat { font-size: calc(.14 * var(--spmod-t, 1rem)); color: var(--text-lo); }
 .spmod-close {
   margin-left: auto;
   width: .3rem;
   height: .3rem;
-  font-size: .2rem;
+  font-size: calc(.2 * var(--spmod-t, 1rem));
   line-height: 1;
   color: var(--text-lo);
   background: transparent;
@@ -130,8 +130,8 @@
   border-radius: .05rem;
   color: var(--text-md);
 }
-.spmod-tab b { font-size: .14rem; font-weight: 700; letter-spacing: .04em; }
-.spmod-tab span { font-size: .13rem; color: var(--text-lo); max-width: 1.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spmod-tab b { font-size: calc(.14 * var(--spmod-t, 1rem)); font-weight: 700; letter-spacing: .04em; }
+.spmod-tab span { font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); max-width: 1.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spmod-tab.is-on { border-color: var(--mint-500); background: var(--mint-900); }
 .spmod-tab.is-on b { color: var(--mint-400); }
 .spmod-tab.is-on span { color: var(--text-hi); }
@@ -154,7 +154,7 @@
 }
 .spmod-segbtn {
   padding: .05rem .12rem;
-  font-size: .14rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   color: var(--text-lo);
   background: var(--bg-2);
   border: 0;
@@ -162,18 +162,18 @@
 .spmod-segbtn + .spmod-segbtn { border-left: 1px solid var(--line-2); }
 .spmod-segbtn:hover { color: var(--text-hi); }
 .spmod-segbtn.is-on { color: var(--text-on-mint); background: linear-gradient(180deg, var(--mint-400), var(--mint-600)); }
-.spmod-limitwrap { display: inline-flex; align-items: center; gap: .06rem; font-size: .14rem; color: var(--text-lo); }
+.spmod-limitwrap { display: inline-flex; align-items: center; gap: .06rem; font-size: calc(.14 * var(--spmod-t, 1rem)); color: var(--text-lo); }
 .spmod-limit {
   width: .6rem;
   padding: .04rem .06rem;
-  font-size: .14rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   color: var(--text-hi);
   background: var(--bg-0);
   border: 1px solid var(--line-2);
   border-radius: .04rem;
 }
 .spmod-limit:focus { border-color: var(--mint-500); }
-.spmod-quota { margin-left: auto; font-size: .14rem; color: var(--text-lo); }
+.spmod-quota { margin-left: auto; font-size: calc(.14 * var(--spmod-t, 1rem)); color: var(--text-lo); }
 .spmod-quota.is-out { color: var(--red-premium); font-weight: 700; }
 
 /* ---- filters ---------------------------------------------------------------------------------------- */
@@ -189,7 +189,7 @@
   flex: 1;
   min-width: 0;
   padding: .06rem .1rem;
-  font-size: .15rem;
+  font-size: calc(.15 * var(--spmod-t, 1rem));
   color: var(--text-hi);
   background: var(--bg-0);
   border: 1px solid var(--line-2);
@@ -198,13 +198,13 @@
 .spmod-search:focus { border-color: var(--mint-500); }
 .spmod-prof {
   padding: .06rem .08rem;
-  font-size: .15rem;
+  font-size: calc(.15 * var(--spmod-t, 1rem));
   color: var(--text-md);
   background: var(--bg-0);
   border: 1px solid var(--line-2);
   border-radius: .04rem;
 }
-.spmod-hint { font-size: .14rem; color: var(--text-lo); }
+.spmod-hint { font-size: calc(.14 * var(--spmod-t, 1rem)); color: var(--text-lo); }
 
 /* ---- the grid --------------------------------------------------------------------------------------- */
 
@@ -251,7 +251,7 @@
   background: var(--bg-3);
 }
 .spmod-name {
-  font-size: .14rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   font-weight: 600;
   color: var(--text-hi);
   overflow: hidden;
@@ -266,14 +266,14 @@
   min-width: .2rem;
   height: .2rem;
   padding: 0 .03rem;
-  font-size: .12rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   font-style: normal;
   font-weight: 700;
   color: var(--bg-0);
   background: var(--tier-1);
   border-radius: .03rem;
 }
-.spmod-price { font-size: .14rem; font-weight: 700; color: var(--gold); }
+.spmod-price { font-size: calc(.14 * var(--spmod-t, 1rem)); font-weight: 700; color: var(--gold); }
 
 .spmod-t2 .spmod-tier { background: var(--tier-2); }
 .spmod-t3 .spmod-tier { background: var(--tier-3); }
@@ -310,9 +310,9 @@
 }
 .spmod-row:hover { border-color: var(--mint-500); color: var(--text-hi); }
 .spmod-row.is-poor { opacity: .55; }
-.spmod-row .spmod-name { flex: 1 1 auto; min-width: 0; font-size: .14rem; }
-.spmod-row .spmod-tier { min-width: .18rem; height: .18rem; font-size: .11rem; }
-.spmod-row .spmod-price { font-size: .13rem; }
+.spmod-row .spmod-name { flex: 1 1 auto; min-width: 0; font-size: calc(.14 * var(--spmod-t, 1rem)); }
+.spmod-row .spmod-tier { min-width: .18rem; height: .18rem; font-size: calc(.13 * var(--spmod-t, 1rem)); }
+.spmod-row .spmod-price { font-size: calc(.13 * var(--spmod-t, 1rem)); }
 .spmod-row .spmod-pips { gap: .02rem; }
 .spmod-row .spmod-pips i { width: .05rem; height: .05rem; }
 .spmod-row.is-locked { opacity: .5; border-left-color: var(--line-3); }
@@ -330,7 +330,7 @@
   left: .03rem;
   top: .03rem;
   padding: 0 .04rem;
-  font-size: .11rem;
+  font-size: calc(.13 * var(--spmod-t, 1rem));
   font-weight: 700;
   line-height: .16rem;
   color: var(--text-on-mint);
@@ -340,17 +340,17 @@
 .spmod-diy.is-inline { position: static; }
 .spmod-card.is-locked { opacity: .5; }
 .spmod-card.is-locked:hover { transform: none; border-color: var(--line); }
-.spmod-sizebtn { padding: .03rem .07rem; font-size: .12rem; color: var(--text-lo); background: var(--bg-2); border: 1px solid var(--line-2); border-radius: .03rem; }
+.spmod-sizebtn { padding: .03rem .07rem; font-size: calc(.14 * var(--spmod-t, 1rem)); color: var(--text-lo); background: var(--bg-2); border: 1px solid var(--line-2); border-radius: .03rem; }
 .spmod-sizebtn:hover { color: var(--text-hi); border-color: var(--mint-500); }
 .spmod-sizebtn.is-on { color: var(--text-on-mint); background: linear-gradient(180deg, var(--mint-400), var(--mint-600)); border-color: var(--mint-700); }
 .spmod-sizes { display: inline-flex; align-items: center; gap: .04rem; }
-.spmod-sizes > span { font-size: .13rem; color: var(--text-lo); }
+.spmod-sizes > span { font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); }
 .spmod-headright { display: flex; align-items: center; gap: .08rem; margin-left: auto; }
 .spmod-headright .spmod-close { margin-left: .02rem; }
-.spmod-headright .spmod-segbtn { padding: .03rem .08rem; font-size: .12rem; }
-.spmod-headright .spmod-close { width: .26rem; height: .26rem; font-size: .16rem; }
+.spmod-headright .spmod-segbtn { padding: .03rem .08rem; font-size: calc(.14 * var(--spmod-t, 1rem)); }
+.spmod-headright .spmod-close { width: .26rem; height: .26rem; font-size: calc(.16 * var(--spmod-t, 1rem)); }
 
-.spmod-empty { padding: .3rem; text-align: center; font-size: .15rem; color: var(--text-lo); }
+.spmod-empty { padding: .3rem; text-align: center; font-size: calc(.15 * var(--spmod-t, 1rem)); color: var(--text-lo); }
 
 /* ---- battle speed (always up during a match, unlike the shop panel) --------------------------------- */
 
@@ -377,11 +377,11 @@
 .spmod-speed:active { cursor: grabbing; }
 .spmod-speed.is-ok { border-color: var(--mint-500); }
 .spmod-speed.is-err { border-color: var(--red-premium); }
-.spmod-speed-label { font-size: .13rem; letter-spacing: .04em; color: var(--text-lo); }
+.spmod-speed-label { font-size: calc(.13 * var(--spmod-t, 1rem)); letter-spacing: .04em; color: var(--text-lo); }
 .spmod-speedbtn {
   min-width: .34rem;
   padding: .04rem .06rem;
-  font-size: .14rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   font-weight: 700;
   color: var(--text-md);
   background: var(--bg-2);
@@ -423,11 +423,11 @@
 .spmod-auto :is(select, button, label, input) { cursor: pointer; }
 .spmod-auto.is-ok { border-color: var(--mint-500); }
 .spmod-auto.is-err { border-color: var(--red-premium); }
-.spmod-autolabel { font-size: .13rem; letter-spacing: .04em; color: var(--text-lo); white-space: nowrap; }
+.spmod-autolabel { font-size: calc(.13 * var(--spmod-t, 1rem)); letter-spacing: .04em; color: var(--text-lo); white-space: nowrap; }
 .spmod-autosel,
 .spmod-autobtn {
   padding: .04rem .06rem;
-  font-size: .13rem;
+  font-size: calc(.13 * var(--spmod-t, 1rem));
   color: var(--text-md);
   background: var(--bg-2);
   border: 1px solid var(--line-2);
@@ -443,7 +443,7 @@
   background: linear-gradient(180deg, var(--mint-400), var(--mint-600));
   border-color: var(--mint-700);
 }
-.spmod-autochk { display: inline-flex; align-items: center; gap: .04rem; font-size: .13rem; color: var(--text-lo); white-space: nowrap; }
+.spmod-autochk { display: inline-flex; align-items: center; gap: .04rem; font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); white-space: nowrap; }
 .spmod-autochk input { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; }
 
 /* the tick list: a full-width row that wraps under the bar when the 目标 button opens it */
@@ -460,12 +460,12 @@
   margin-top: .02rem;
 }
 .spmod-autotargetbox[hidden] { display: none; }
-.spmod-autotargetnote { font-size: .115rem; color: var(--text-lo); opacity: .85; padding: .02rem 0 .01rem; white-space: nowrap; }
+.spmod-autotargetnote { font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); opacity: .85; padding: .02rem 0 .01rem; white-space: nowrap; }
 .spmod-autotarget {
   display: flex;
   align-items: center;
   gap: .04rem;
-  font-size: .13rem;
+  font-size: calc(.13 * var(--spmod-t, 1rem));
   color: var(--text-md);
   white-space: nowrap;
   padding: .01rem .02rem;
@@ -475,7 +475,7 @@
 .spmod-autotarget input { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; flex: none; }
 .spmod-autotarget.is-locked { opacity: .5; }
 .spmod-autotargetname { flex: 1 1 auto; }
-.spmod-autotargetcls { font-style: normal; font-size: .11rem; color: var(--text-lo); opacity: .8; }
+.spmod-autotargetcls { font-style: normal; font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); opacity: .8; }
 .spmod-autotarget.is-deferred .spmod-autotargetcls { color: var(--warn-400, #e8a13a); }
 
 /* ---- the sandbox bar (its own classes, like the auto-reverse bar) ------------------------------------- */
@@ -502,12 +502,12 @@
 .spmod-sandbox[hidden] { display: none; }
 .spmod-sandbox:active { cursor: grabbing; }
 .spmod-sandbox :is(button, label, input) { cursor: pointer; }
-.spmod-sblabel { font-size: .13rem; letter-spacing: .04em; color: var(--text-lo); white-space: nowrap; }
-.spmod-sbchk { display: inline-flex; align-items: center; gap: .04rem; font-size: .13rem; color: var(--text-md); white-space: nowrap; }
+.spmod-sblabel { font-size: calc(.13 * var(--spmod-t, 1rem)); letter-spacing: .04em; color: var(--text-lo); white-space: nowrap; }
+.spmod-sbchk { display: inline-flex; align-items: center; gap: .04rem; font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-md); white-space: nowrap; }
 .spmod-sbchk input { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; }
 .spmod-sbbtn {
   padding: .04rem .06rem;
-  font-size: .13rem;
+  font-size: calc(.13 * var(--spmod-t, 1rem));
   font-weight: 700;
   color: var(--text-md);
   background: var(--bg-2);
@@ -523,13 +523,13 @@
 .spmod-sbbody { gap: .06rem; overflow-y: auto; padding-bottom: .14rem; }
 .spmod-sbbody > * { flex: 0 0 auto; }
 .spmod-sbhead { display: flex; align-items: center; gap: .1rem; padding: .08rem .16rem 0; }
-.spmod-sbhint { margin-left: auto; font-size: .13rem; color: var(--text-lo); }
+.spmod-sbhint { margin-left: auto; font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); }
 .spmod-sbsection { display: flex; flex-direction: column; gap: .05rem; padding: .08rem .16rem 0; }
 /* where a switched-off group's controls would be: the ordinary hint row, marked with an accent bar so it reads as a
    stand-in rather than as another control */
 .spmod-sbsection.spmod-offnote { border-left: .02rem solid var(--warn-400, #e8a13a); padding-left: .1rem; margin-top: .06rem; }
-.spmod-sbtitle { font-size: .13rem; color: var(--text-lo); }
-.spmod-sbrow { display: flex; align-items: center; gap: .06rem; font-size: .14rem; color: var(--text-md); }
+.spmod-sbtitle { font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); }
+.spmod-sbrow { display: flex; align-items: center; gap: .06rem; font-size: calc(.14 * var(--spmod-t, 1rem)); color: var(--text-md); }
 .spmod-sbrow input[type='checkbox'] { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; }
 
 /* ---- the master switches (总开关) --------------------------------------------------------------------- */
@@ -544,7 +544,7 @@
   cursor: pointer;
 }
 .spmod-enablerow input[type='checkbox'] { accent-color: var(--mint-500); width: .16rem; height: .16rem; margin: 0; }
-.spmod-enablelabel { font-size: .14rem; color: var(--text-md); }
+.spmod-enablelabel { font-size: calc(.14 * var(--spmod-t, 1rem)); color: var(--text-md); }
 .spmod-enablerow .spmod-hint { grid-column: 2; }
 /* a switch that is OFF dims its row: the state has to be readable without reading the checkbox */
 .spmod-enablerow input:not(:checked) ~ .spmod-enablelabel { color: var(--text-lo); text-decoration: line-through; }
@@ -575,9 +575,9 @@
 .spmod-band:hover { border-color: var(--mint-500); color: var(--text-hi); }
 .spmod-band.is-on { border-left-color: var(--mint-500); background: var(--mint-900); color: var(--text-hi); }
 .spmod-band.is-primary { border-left-color: var(--gold); }
-.spmod-bandname { font-size: .14rem; font-weight: 600; }
-.spmod-bandmeta { margin-left: auto; font-size: .12rem; color: var(--text-lo); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.spmod-bandtag { flex: 0 0 auto; font-size: .11rem; color: var(--mint-400); }
+.spmod-bandname { font-size: calc(.14 * var(--spmod-t, 1rem)); font-weight: 600; }
+.spmod-bandmeta { margin-left: auto; font-size: calc(.14 * var(--spmod-t, 1rem)); color: var(--text-lo); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spmod-bandtag { flex: 0 0 auto; font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--mint-400); }
 
 /* ---- the shop page: 阵营锁 (the shop's bond filter) ---------------------------------------------------- */
 
@@ -585,7 +585,7 @@
 .spmod-bondchips { display: flex; flex-wrap: wrap; gap: .04rem; }
 .spmod-bondchip {
   padding: .03rem .07rem;
-  font-size: .12rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   background: var(--bg-2);
   border: 1px solid var(--line);
   border-radius: .04rem;
@@ -598,7 +598,7 @@
 .spmod-filtermode { display: flex; flex-wrap: wrap; gap: .04rem; }
 .spmod-modebtn {
   padding: .03rem .07rem;
-  font-size: .12rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   background: var(--bg-2);
   border: 1px solid var(--line);
   border-radius: .04rem;
@@ -630,15 +630,15 @@
   border-left: .03rem solid var(--line-3);
   border-radius: .04rem;
   color: var(--text-md);
-  font-size: .13rem;
+  font-size: calc(.13 * var(--spmod-t, 1rem));
   cursor: pointer;
 }
 .spmod-unit:hover { border-color: var(--mint-500); color: var(--text-hi); }
 .spmod-unit.is-on { border-left-color: var(--mint-500); background: var(--mint-900); color: var(--text-hi); }
 .spmod-unitname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.spmod-unittier { flex: 0 0 auto; font-size: .11rem; color: var(--text-lo); }
+.spmod-unittier { flex: 0 0 auto; font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); }
 .spmod-statgrid { display: flex; flex-wrap: wrap; gap: .05rem .14rem; }
-.spmod-statfield { display: inline-flex; align-items: center; gap: .05rem; font-size: .13rem; color: var(--text-lo); white-space: nowrap; }
+.spmod-statfield { display: inline-flex; align-items: center; gap: .05rem; font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); white-space: nowrap; }
 .spmod-statfield input { width: .72rem; }
 
 /* ---- inline message --------------------------------------------------------------------------------- */
@@ -646,7 +646,7 @@
 .spmod-flash {
   min-height: .3rem;
   padding: .06rem .16rem;
-  font-size: .14rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   color: var(--red-premium);
   border-top: 1px solid transparent;
 }
@@ -656,12 +656,12 @@
 /* ---- the 自选位 page (per-slot 盟约 / 特质) ------------------------------------------------------------- */
 
 .spmod-diyslot { border-top: 1px solid var(--line); padding-top: .1rem; }
-.spmod-diywho { font-size: .14rem; font-weight: 600; color: var(--mint-400); }
+.spmod-diywho { font-size: calc(.14 * var(--spmod-t, 1rem)); font-weight: 600; color: var(--mint-400); }
 .spmod-diywho.is-empty { font-weight: 400; color: var(--text-lo); }
 .spmod-garchips { display: flex; flex-wrap: wrap; gap: .04rem; }
 .spmod-garchip {
   padding: .03rem .07rem;
-  font-size: .12rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   font-family: ui-monospace, Consolas, monospace;
   background: var(--bg-2);
   border: 1px solid var(--line);
@@ -690,8 +690,8 @@
   color: var(--text-md);
 }
 .spmod-gar:hover { border-color: var(--mint-500); color: var(--text-hi); }
-.spmod-garev { flex: 0 0 auto; font-size: .11rem; color: var(--mint-400); min-width: .8rem; }
-.spmod-gartext { font-size: .13rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spmod-garev { flex: 0 0 auto; font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--mint-400); min-width: .8rem; }
+.spmod-gartext { font-size: calc(.13 * var(--spmod-t, 1rem)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* the 自选位 number editor: one block per assigned effect, one box per key that effect's record carries */
 .spmod-bbsection { display: flex; flex-direction: column; gap: .03rem; padding-top: .03rem; }
@@ -710,10 +710,114 @@
   position: sticky;
   top: 0;
   padding: .04rem .04rem .02rem;
-  font-size: .12rem;
+  font-size: calc(.14 * var(--spmod-t, 1rem));
   color: var(--mint-400);
   background: var(--bg-1, var(--bg-2));
 }
-.spmod-garsrc { font-size: .11rem; color: var(--text-lo); margin-left: auto; white-space: nowrap; }
+.spmod-garsrc { font-size: calc(.13 * var(--spmod-t, 1rem)); color: var(--text-lo); margin-left: auto; white-space: nowrap; }
 .spmod-gar { align-items: flex-start; }
 .spmod-gartext { white-space: normal; }
+
+/* ---- the panel's text root, and the small / touch layout ----------------------------------------------
+   Every font-size above is calc(N * var(--spmod-t, 1rem)). --spmod-t is the game's own text root --t
+   (public/css/theme.css, 设置 →「文字大小」, 1rem unless the player picks a step), so by default the panel's text
+   is exactly what it always was, and from now on it moves with the game's own text instead of staying at the
+   design's sizes. The game hit the same wall on a phone: the layout root is clamped at 40px there, which is what
+   made its own .18rem body text 7.2 CSS px, and --t is the fix it shipped.
+
+   Two things the panel never did:
+
+   1. Ride that variable. Nothing here needs the player to touch a setting.
+   2. Enlarge the targets. A row is .045rem of padding around .14rem of text, about 9 CSS px tall on a 40px root,
+      which a finger cannot hit. Everything tappable gets a real height below.
+
+   `html.spmod-touch` is put there by overlay.js when the pointer is coarse or the panel's own text would land
+   under about 9px (the layout root below 64px, i.e. a window under ~1230×690), and is kept current on resize and
+   rotation. Inside it --spmod-t never drops below the 大 step (76px), so leaving 文字大小 on 小 does not leave the
+   panel unreadable either. */
+
+.spmod { --spmod-t: var(--t, 1rem); }
+
+.spmod-touch .spmod { --spmod-t: max(var(--t, 1rem), 76px); }
+
+.spmod-touch .spmod-panel {
+  --spmod-w: min(94vw, 22rem);
+  --spmod-h: min(92vh, 12rem);
+}
+
+.spmod-touch .spmod-fab { padding: .12rem .2rem; }
+.spmod-touch .spmod-head { gap: .16rem; padding: .14rem .18rem; }
+.spmod-touch .spmod-close { width: .9rem; height: .9rem; }
+.spmod-touch .spmod-headright .spmod-close { width: .8rem; height: .8rem; }
+.spmod-touch .spmod-grip { width: .8rem; height: .8rem; }
+.spmod-touch .spmod-tabs { gap: .1rem; padding: .12rem .18rem 0; }
+.spmod-touch .spmod-tab { min-width: 1.7rem; padding: .12rem .16rem; }
+.spmod-touch .spmod-toolbar,
+.spmod-touch .spmod-filters { gap: .12rem; padding: .12rem .18rem; }
+.spmod-touch .spmod-segbtn { padding: .11rem .2rem; }
+.spmod-touch .spmod-limitwrap { gap: .1rem; }
+.spmod-touch .spmod-limit { width: 1rem; padding: .1rem .12rem; }
+.spmod-touch .spmod-search,
+.spmod-touch .spmod-prof { padding: .1rem .14rem; }
+.spmod-touch .spmod-sizebtn { padding: .1rem .16rem; }
+.spmod-touch .spmod-sizes { gap: .08rem; }
+
+.spmod-touch .spmod-grid {
+  grid-template-columns: repeat(auto-fill, minmax(1.6rem, 1fr));
+  gap: .12rem;
+  padding: 0 .18rem .16rem;
+}
+.spmod-touch .spmod-grid.is-name { grid-template-columns: repeat(auto-fill, minmax(4rem, 1fr)); }
+.spmod-touch .spmod-card { gap: .04rem; padding: .06rem .06rem .08rem; }
+.spmod-touch .spmod-name { white-space: normal; }
+.spmod-touch .spmod-tier { min-width: .34rem; height: .34rem; padding: 0 .06rem; }
+.spmod-touch .spmod-meta { gap: .08rem; }
+.spmod-touch .spmod-pips { gap: .06rem; }
+.spmod-touch .spmod-pips i { width: .1rem; height: .1rem; }
+.spmod-touch .spmod-row { min-height: 1.05rem; padding: .1rem .12rem; gap: .1rem; }
+.spmod-touch .spmod-row .spmod-tier { min-width: .34rem; height: .34rem; }
+.spmod-touch .spmod-row .spmod-pips i { width: .1rem; height: .1rem; }
+.spmod-touch .spmod-empty { padding: .4rem .2rem; }
+
+.spmod-touch .spmod-speed { top: 40%; }
+.spmod-touch .spmod-speedbtn { min-width: .8rem; padding: .12rem .14rem; }
+.spmod-touch .spmod-auto { top: calc(40% + 1.6rem); }
+.spmod-touch .spmod-sandbox { top: calc(40% + 3.1rem); }
+.spmod-touch .spmod-autosel,
+.spmod-touch .spmod-autobtn,
+.spmod-touch .spmod-sbbtn { padding: .12rem .16rem; min-height: .8rem; }
+.spmod-touch .spmod-autosel { max-width: 4.6rem; }
+.spmod-touch .spmod-autochk,
+.spmod-touch .spmod-sbchk { gap: .08rem; }
+.spmod-touch .spmod-autochk input,
+.spmod-touch .spmod-sbchk input,
+.spmod-touch .spmod-sbrow input[type='checkbox'],
+.spmod-touch .spmod-enablerow input[type='checkbox'],
+.spmod-touch .spmod-autotarget input { width: .42rem; height: .42rem; }
+.spmod-touch .spmod-autotargetbox { max-height: 5.5rem; }
+.spmod-touch .spmod-autotarget { padding: .1rem .06rem; gap: .08rem; }
+
+.spmod-touch .spmod-sbhead,
+.spmod-touch .spmod-sbsection { padding: .1rem .18rem 0; }
+.spmod-touch .spmod-sbsub { padding: 0 .18rem; }
+.spmod-touch .spmod-enablerow { grid-template-columns: .42rem 1fr; gap: .04rem .12rem; padding: .12rem .06rem; }
+.spmod-touch .spmod-bands { grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); max-height: 5rem; }
+.spmod-touch .spmod-band { min-height: 1.05rem; padding: .1rem .12rem; }
+.spmod-touch .spmod-units { grid-template-columns: repeat(auto-fill, minmax(3.4rem, 1fr)); max-height: 4.5rem; }
+.spmod-touch .spmod-unit { min-height: 1rem; padding: .1rem .12rem; }
+.spmod-touch .spmod-bondchip,
+.spmod-touch .spmod-modebtn,
+.spmod-touch .spmod-garchip { padding: .1rem .14rem; min-height: .8rem; }
+.spmod-touch .spmod-gars { max-height: 3.4rem; }
+.spmod-touch .spmod-gar { padding: .1rem .12rem; }
+.spmod-touch .spmod-bbgrid,
+.spmod-touch .spmod-statgrid { gap: .08rem .18rem; }
+.spmod-touch .spmod-statfield input { width: 1.2rem; }
+.spmod-touch .spmod-flash { min-height: .7rem; }
+
+/* The panel takes nearly the whole screen here, so the three bars would sit on top of it (their default
+   anchors are all on the right edge). While it is open they step aside; they are back the moment it
+   closes, which is when they are actually used (倍速 during combat, 自动买卖 in prep). */
+.spmod-touch .spmod.is-open .spmod-speed,
+.spmod-touch .spmod.is-open .spmod-auto,
+.spmod-touch .spmod.is-open .spmod-sandbox { display: none; }

@@ -1,0 +1,62 @@
+name: Build APK
+
+# Manual on purpose: the APK is built when a release needs one, not on every push. The runner brings
+# the Android SDK and a JDK; this repo brings the sources.
+#
+# Push a tag, create the release with the desktop zip, then run this workflow with that tag and it
+# attaches the APK to the same release.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "把 APK 挂到这个 Release 标签上（留空就只当构建产物）"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # The game version is read from the one place it is written down.
+      - name: Stage the game and the mod into assets
+        run: bash android/scripts/stage-assets.sh
+
+      - name: Native libraries
+        run: bash android/scripts/fetch-libnode.sh
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build the APK
+        working-directory: android
+        run: gradle :app:assembleRelease --no-daemon
+
+      - name: Report
+        run: |
+          ls -lh android/app/build/outputs/apk/release/
+          sha256sum android/app/build/outputs/apk/release/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stronghold-luck-apk
+          path: android/app/build/outputs/apk/release/*.apk
+
+      - name: Attach the APK to the release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.release_tag }}"
+          gh release upload "$tag" android/app/build/outputs/apk/release/*.apk --clobber
