@@ -1,0 +1,14 @@
+# Shell scripts are run on Linux (the Android build) and on macOS; a CRLF in them is a "bad
+# interpreter" or a stray $'\r'. Keep them LF wherever they are checked out, and keep the Windows
+# scripts CRLF, which is what cmd.exe and PowerShell expect.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Assets and archives are binaries; never touch their line endings.
+*.png binary
+*.jpg binary
+*.webp binary
+*.zip binary
+*.so binary
