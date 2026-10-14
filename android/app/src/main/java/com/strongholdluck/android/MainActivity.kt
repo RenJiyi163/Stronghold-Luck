@@ -64,6 +64,12 @@ class MainActivity : Activity() {
 
     private var running = false
 
+    /** The descriptors Os.dup2 handed back for fd 1 and 2 in captureNodeOutput; held, never closed. */
+    @Suppress("unused")
+    private var stdoutDup: FileDescriptor? = null
+    @Suppress("unused")
+    private var stderrDup: FileDescriptor? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -267,11 +273,11 @@ class MainActivity : Activity() {
             val pipe = ParcelFileDescriptor.createPipe()
             val readEnd = pipe[0]
             val writeEnd = pipe[1]
-            // Os.dup2 is only declared for FileDescriptor in the SDK, and FileDescriptor.out / .err are
-            // exactly fd 1 and fd 2. Closing the write end afterwards closes only the original handle:
-            // dup2 left two independent copies behind.
-            Os.dup2(writeEnd.fileDescriptor, FileDescriptor.out)
-            Os.dup2(writeEnd.fileDescriptor, FileDescriptor.err)
+            // Os.dup2(oldFd, newFd): newFd is the RAW descriptor number, and 1 / 2 are stdout and stderr.
+            // It hands back a FileDescriptor wrapping the *new* number, which is why the two results are
+            // kept in fields instead of closed — closing them would close the streams just installed.
+            stdoutDup = Os.dup2(writeEnd.fileDescriptor, 1)
+            stderrDup = Os.dup2(writeEnd.fileDescriptor, 2)
             writeEnd.close()
             thread(name = "node-output", isDaemon = true) {
                 try {
