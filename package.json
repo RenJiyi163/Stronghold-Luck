@@ -1,7 +1,7 @@
 {
   "name": "stronghold-luck",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "description": "自选商店外挂：为 Stronghold-Protocol 加上「商店里出什么由你挑」",
   "scripts": {

@@ -8,15 +8,15 @@
 
 ## 用法
 
-双击 `start.cmd`，浏览器会自动打开 `http://127.0.0.1:3000`。
+Windows 双击 `start.cmd`，macOS / Linux 跑 `./start.sh`，浏览器会自动打开 `http://127.0.0.1:3000`。
 
 ### 游戏装在哪儿，它自己找
 
 外挂不要求游戏在哪个盘。双击 `start.cmd` 之后，它按这个顺序找：
 
 1. `mod.config.json` 里的 `gameRoot`（填过就用它）；
-2. 自动探测：外挂旁边的 `Stronghold-Protocol`、当前目录、`C:` 到 `H:` 各盘根与常见的 `Games` / `SteamLibrary` 位置、桌面、下载、文档；
-3. 都没找到就**弹一个文件夹选择框**，你指到游戏文件夹（里面有 `server` 那个）就行。选完写进 `mod.config.json`，以后不再问。
+2. 自动探测：外挂旁边的 `Stronghold-Protocol`、当前目录、各盘根与常见的 `Games` / `SteamLibrary` 位置、桌面、下载、文档；
+3. 都没找到就问你一句：Windows 上弹一个文件夹选择框，**macOS / Linux 上是在终端里让你输入路径**（那边没有 FolderBrowserDialog，也没有 `start.cmd` 能拖文件夹）。指到游戏文件夹（里面有 `server` 那个）就行，选完写进 `mod.config.json`，以后不再问。
 
 也可以自己指定，三种都行：
 
@@ -24,7 +24,7 @@
 - 改 `mod.config.json` 的 `gameRoot`（JSON 里反斜杠写两个：`"E:\\Games\\Stronghold-Protocol"`）；
 - 命令行 `node src/launcher.mjs --game "E:\Games\Stronghold-Protocol"`。
 
-**它会认游戏版本。** 不是 0.2.2 时启动时打一行提醒；上游改过锚点的话，面板会整块不出现（见「游戏更新了怎么办」）。
+**它会认游戏版本。** 不是 0.2.6 时启动时打一行提醒；上游改过锚点的话，面板会整块不出现（见「游戏更新了怎么办」）。
 
 命令行也行：
 
@@ -227,6 +227,32 @@ node src/launcher.mjs --host 0.0.0.0
 
 也可以把 `mod.config.json` 的 `host` 改成 `0.0.0.0`，但那会让**同一网络里任何人都能连进来**，自己掂量。
 
+### 手机上玩：手机当客户端，电脑开着服
+
+外挂不需要手机版，因为它本来就挡在游戏服务器前面：**谁从它这个端口进来，加载到的页面就带面板**。所以手机浏览器直接连电脑就行。
+
+1. 电脑上加 `--host 0.0.0.0` 启动：`node src/launcher.mjs --host 0.0.0.0`（或把 `mod.config.json` 的 `host` 改成 `0.0.0.0`）。默认只听 `127.0.0.1`，手机连不上就是卡在这里。
+2. 放行 Windows 防火墙的入站（第一次启动时弹的窗里勾「专用网络」）。
+3. 手机与电脑同一个 Wi-Fi，横屏打开 `http://<电脑的局域网 IP>:3000`。
+
+面板会自己认出小屏和触屏（认到就往 `<html>` 上挂 `spmod-touch`），行高、勾选框、按钮、槽位页签一律放大到手指点得准；面板张开时「倍速 / 自动买卖 / 沙盒」三条悬浮条先让位，关上面板就回来。**面板的字号跟着游戏的「设置 → 文字大小」走**，所以手机上把那一项调成「大」或「特大」，游戏和面板会一起变清楚。
+
+---
+
+## 安卓版（APK）
+
+`android/` 是一个把游戏和外挂一起装进手机的壳：内嵌 Node（libnode，JNA 直调 `node::Start`）加一个 WebView，装完打开就是带面板的游戏，不用电脑。
+
+**它不含游戏本体。** APK 里带的是游戏代码（上游的 lite 包）和外挂本体；美术、音频、字体（约 560 MB）在**第一次启动时**从上游的完整包里取出来，所以第一次打开要联网、要等几分钟，之后就离线可玩。
+
+- 要求 Android 7.0 及以上、arm64。
+- 和朋友联机：手机开着游戏，同一 Wi-Fi 下他们打开 `http://<手机的局域网 IP>:3000`。
+- 出包：仓库的 Actions 里跑一次 `Build APK`（手动触发，或在 `android/` 下有 push 时自动跑），产物在 Actions 的 artifacts；带 `release_tag` 触发就直接挂到对应的 Release 上。
+
+不想在本地装 Android SDK 就用云端出包，脚本做两件事：`scripts/stage-assets.sh` 把上游 lite 包与本仓库的 `src/`、`public/` 铺进 `app/src/main/assets/`；`scripts/fetch-libnode.sh` 取 libnode.so（60 MB，不入库）并从 Android NDK 里复制 `libc++_shared.so`。少了后者，APK 一启动就 `dlopen failed`，界面是一片白。
+
+**这一块没有真机验证过。** 云端目前只保证编译通过，装到手机上的实际运行没有实测。真出问题的话，应用界面本身就是日志：Node 的 stdout / stderr 被接进了那个日志框，把那几行发出来就能定位。
+
 ---
 
 ## 它到底改了什么
@@ -319,7 +345,7 @@ test/                  三层自检
 **这个游戏不会自动更新，也没有版本检查。** 它联网只做一件事：`tools/build-data.mjs`、`tools/fetch-assets.mjs` 去 `raw.githubusercontent.com` 拉**游戏素材和数据表**（跟代码仓库本身无关）。所以更新完全靠你自己去 GitHub 看：
 
 - 仓库：`https://github.com/sganggs/Stronghold-Protocol`（Releases 里的整合包 / 或者你自己 `git pull`）
-- 本地这份是 **0.2.5**，`package.json` 里的 `version` 就是当前版本号。
+- 本地这份是 **0.2.6**，`package.json` 里的 `version` 就是当前版本号。
 
 **更新之后**：把游戏目录换掉（或 pull），然后**重新双击 `start.cmd`** 就行。绝大多数情况下外挂不需要任何改动，因为它一个字节都没写进游戏目录。只有在控制台出现 `anchors not found` 时才需要改 `src/server-patch.mjs`：它会告诉你是哪个锚点没了。
 
@@ -343,6 +369,7 @@ node test/verify-auto-ui.mjs       # 真浏览器：目标勾选表（只列本�
 node test/verify-diy-slots-ui.mjs  # 真浏览器：面板上配盟约 / 特质 / 数值，全选与默认，加自造位子并按阶挑人，把 1 阶自造位子买下来摆上场看盟约栏，再从「开关」页关掉自选位（以及自造位子）看服务端撤回与画面同步，29 项
 node test/verify-findgame.mjs      # 无头：游戏目录的探测与配置写回（整棵树造在系统临时目录里，不碰真游戏），8 项
 node test/verify-pickgame.mjs      # 无头：选目录用的 PowerShell 脚本（拿 PowerShell 自己的解析器查语法，不真弹框），3 项
+node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌面阴性对照、1100×620、844×390 真视口的字号与点击目标、文字大小跟随、面板张开时悬浮条让位），7 项；加 --shot <文件> 存一张手机视口的截图
 ```
 
 前三个要用游戏自带的 `test/` 目录（`verify.mjs` 借它的对局脚手架，`verify-*.mjs` 借它的 e2e 客户端）。**发布包不带 `test/`**，只有 Git 仓库里有，所以从压缩包装的游戏跑不了这三条。其余各条都只用 `mod.config.json` 里的游戏目录：`verify-diy-ui.mjs`、`verify-sandbox-ui.mjs`、`verify-unit-ui.mjs`、`verify-auto-ui.mjs` 自己驱动页面，`verify-auto.mjs` 直接在引擎上打一局（虚拟时钟，不起服务器也不开浏览器）。`verify-findgame.mjs` 和 `verify-pickgame.mjs` 连游戏都不需要，整棵树造在系统临时目录里。
@@ -366,4 +393,7 @@ node test/verify-pickgame.mjs      # 无头：选目录用的 PowerShell 脚本�
 - **盟约的数值不按位子**（见「自选位」一节）：一条盟约只有一个记录，改了就落在场上每一个带它的干员身上。特质是按位子各一份的。
 - **总开关管的是「从这一刻起」**：战斗已经开打的那一场，它装进去的策略、数值、地块解锁会打完这一场（下一场才干净）；沙盒策略叠起来时抬高的起手 LP 也收不回来，因为生命值已经花掉了，游戏里没有回收它的地方。
 - 只影响你自己的**独立模拟**。同盟模拟（联机）也能用，但那是你自己的选择。
-- **游戏目录记在 `mod.config.json` 的 `gameRoot`**。弹框选过之后会写进去，下次直接用；`--game` 和拖到 `start.cmd` 上只对这一次生效，不写回。
+- **游戏目录记在 `mod.config.json` 的 `gameRoot`**。选过一次之后会写进去，下次直接用；`--game` 和拖到 `start.cmd` 上只对这一次生效，不写回。
+- 手机那边的面板**字号跟着游戏的「设置 → 文字大小」走**，不是自己一套。所以如果你在手机上把游戏字号留成「小」，面板也跟着小（游戏自己也是小的）；调大之后两边一起变清楚。桌面上这一套的首屏大小跟以前完全一样。
+- 手机 / 小窗口下，面板张开时「倍速 / 自动买卖 / 沙盒」三条悬浮条会被藏起来（面板铺得几乎满屏，它们原本会压在上面），关掉面板立刻回来。
+- **安卓版没有真机验证过**：云端只跑到「编译通过 + APK 产出」，装到手机上的运行没有实测。
