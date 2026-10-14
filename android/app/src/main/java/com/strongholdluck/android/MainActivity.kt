@@ -25,6 +25,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import java.io.BufferedReader
 import java.io.File
+import java.io.FileDescriptor
 import java.io.FileInputStream
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -265,10 +266,13 @@ class MainActivity : Activity() {
         try {
             val pipe = ParcelFileDescriptor.createPipe()
             val readEnd = pipe[0]
-            val writeFd = pipe[1].detachFd()
-            Os.dup2(writeFd, 1)
-            Os.dup2(writeFd, 2)
-            Os.close(writeFd)
+            val writeEnd = pipe[1]
+            // Os.dup2 is only declared for FileDescriptor in the SDK, and FileDescriptor.out / .err are
+            // exactly fd 1 and fd 2. Closing the write end afterwards closes only the original handle:
+            // dup2 left two independent copies behind.
+            Os.dup2(writeEnd.fileDescriptor, FileDescriptor.out)
+            Os.dup2(writeEnd.fileDescriptor, FileDescriptor.err)
+            writeEnd.close()
             thread(name = "node-output", isDaemon = true) {
                 try {
                     BufferedReader(InputStreamReader(FileInputStream(readEnd.fileDescriptor), Charsets.UTF_8)).use { reader ->

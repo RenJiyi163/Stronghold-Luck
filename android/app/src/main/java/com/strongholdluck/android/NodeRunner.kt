@@ -4,6 +4,7 @@ import android.util.Log
 import com.sun.jna.FunctionMapper
 import com.sun.jna.Library
 import com.sun.jna.Native
+import com.sun.jna.NativeLibrary
 import com.sun.jna.StringArray
 import java.lang.reflect.Method
 
@@ -24,7 +25,7 @@ interface NodeLibrary : Library {
 }
 
 private class Mangled : FunctionMapper {
-    override fun getFunctionName(libraryName: String, method: Method): String =
+    override fun getFunctionName(library: NativeLibrary, method: Method): String =
         if (method.name == "nodeStart") "_ZN4node5StartEiPPc" else method.name
 }
 
