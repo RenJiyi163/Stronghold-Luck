@@ -1,3 +1,7 @@
+// imported explicitly: inside a Gradle Kotlin script bare `java` is the JavaPluginExtension, so
+// `java.util.Base64` resolves to nothing at all.
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -27,7 +31,7 @@ android {
         signingConfigs {
             create("release") {
                 val ks = File(System.getProperty("java.io.tmpdir"), "strongholdluck-release.jks")
-                ks.writeBytes(java.util.Base64.getDecoder().decode(keystoreB64))
+                ks.writeBytes(Base64.getDecoder().decode(keystoreB64))
                 storeFile = ks
                 storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "strongholdluck"
