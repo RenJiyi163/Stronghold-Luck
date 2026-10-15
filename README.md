@@ -251,7 +251,9 @@ node src/launcher.mjs --host 0.0.0.0
 
 不想在本地装 Android SDK 就用云端出包，脚本做两件事：`scripts/stage-assets.sh` 把上游 lite 包与本仓库的 `src/`、`public/` 铺进 `app/src/main/assets/`；`scripts/fetch-libnode.sh` 取 libnode.so（60 MB，不入库）并从 Android NDK 里复制 `libc++_shared.so`。少了后者，APK 一启动就 `dlopen failed`，界面是一片白。
 
-**这一块没有真机验证过。** 云端目前只保证编译通过，装到手机上的实际运行没有实测。真出问题的话，应用界面本身就是日志：Node 的 stdout / stderr 被接进了那个日志框，把那几行发出来就能定位。
+**已在安卓模拟器上实测跑通**（雷电 9，Android 9，x86_64；2026-10-15 晚，v0.1.4 之前的那版 APK）。装上就能进：Node 真起来了，外挂的挂点全部落上，游戏服务器在 `127.0.0.1:3000` 应答，WebView 里从标题页走到休整期，面板可用（当场直购了一名干员，资金扣了、服务端的操作记录里也记下了）。跑通的这套流程包括手机上那个视口下面板的尺寸与位置。
+
+真机的触屏手感和性能还没试过。出问题的话，应用界面本身就是日志：Node 的 stdout / stderr 被接进了那个日志框，把那几行发出来就能定位。想自己复现这套验证，看「自检」一节末尾。
 
 ---
 
@@ -369,12 +371,30 @@ node test/verify-auto-ui.mjs       # 真浏览器：目标勾选表（只列本�
 node test/verify-diy-slots-ui.mjs  # 真浏览器：面板上配盟约 / 特质 / 数值，全选与默认，加自造位子并按阶挑人，把 1 阶自造位子买下来摆上场看盟约栏，再从「开关」页关掉自选位（以及自造位子）看服务端撤回与画面同步，29 项
 node test/verify-findgame.mjs      # 无头：游戏目录的探测与配置写回（整棵树造在系统临时目录里，不碰真游戏），8 项
 node test/verify-pickgame.mjs      # 无头：选目录用的 PowerShell 脚本（拿 PowerShell 自己的解析器查语法，不真弹框），3 项
-node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌面阴性对照、1100×620、844×390 真视口的字号与点击目标、文字大小跟随、面板张开时悬浮条让位），7 项；加 --shot <文件> 存一张手机视口的截图
+node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌面阴性对照、1100×620、844×390 真视口的字号与点击目标、文字大小跟随、换小视口后尺寸重新收进视口、面板张开时悬浮条让位），8 项；加 --shot <文件> 存一张手机视口的截图
 ```
 
 前三个要用游戏自带的 `test/` 目录（`verify.mjs` 借它的对局脚手架，`verify-*.mjs` 借它的 e2e 客户端）。**发布包不带 `test/`**，只有 Git 仓库里有，所以从压缩包装的游戏跑不了这三条。其余各条都只用 `mod.config.json` 里的游戏目录：`verify-diy-ui.mjs`、`verify-sandbox-ui.mjs`、`verify-unit-ui.mjs`、`verify-auto-ui.mjs` 自己驱动页面，`verify-auto.mjs` 直接在引擎上打一局（虚拟时钟，不起服务器也不开浏览器）。`verify-findgame.mjs` 和 `verify-pickgame.mjs` 连游戏都不需要，整棵树造在系统临时目录里。
 
 它们都需 `npm i`（装的是 `puppeteer-core`，只用于自检，游戏运行时用不到）和一个 Chrome/Edge。截图会落在**游戏目录**的 `test/e2e/out/`（那是游戏自己的截图目录，已在它的 `.gitignore` 里）；外挂不会往游戏目录写别的任何东西。
+
+### 安卓壳怎么验（不用真机）
+
+用安卓模拟器，雷电 9 这类都行。要点与坑：
+
+- **模拟器默认没有 root**，往 `/data/data/<包名>` 里塞文件要用到。雷电：`ldconsole modify --index 0 --root 1`，然后重启模拟器（`quit` + `launch`），之后 `adb root` 和 `su` 都在。
+- **别等它自己下那 560 MB**（走镜像实测约 0.3 MB/s，半小时以上）。APK 只从上游完整包里取 `public/assets`、`public/fonts`、`data/local-assets.json` 三样，而这三样本机的游戏目录里就有。推过去再补一个标记文件，首启就直接跳到启动 Node：
+  ```
+  adb root
+  adb push <游戏目录>/public/assets  /data/data/com.strongholdluck.android/files/game/public/
+  adb push <游戏目录>/public/fonts   /data/data/com.strongholdluck.android/files/game/public/
+  adb push <游戏目录>/data/local-assets.json /data/data/com.strongholdluck.android/files/game/data/
+  adb shell "echo -n 0.2.6 > /data/data/com.strongholdluck.android/files/game/.assets-ready"
+  adb shell "chown -R 10051:10051 /data/data/com.strongholdluck.android/files && restorecon -R /data/data/com.strongholdluck.android/files"
+  ```
+  （`10051` 是应用的 uid（`u0_a51`），核一下用 `adb shell pm list packages -U | grep strongholdluck`。`.code-ready` 由应用自己写。）
+- **Git Bash 里先 `export MSYS_NO_PATHCONV=1`**：不然 `/data/...` 会被改写成 `C:/Program Files/Git/data/...`，`adb push` 会卡在那儿什么也不传（看起来像模拟器磁盘慢，其实一个字节都没发）。
+- 想不碰鼠标把游戏点进对局：APK 里 WebView 调试是开着的，`adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` 之后可以直接用 CDP 在页面里求值、点按钮。另外 `adb forward tcp:3000 tcp:3000` 能把模拟器里那份游戏直接给电脑浏览器打开看。
 
 ---
 
@@ -388,7 +408,7 @@ node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌�
 - **直购和放入槽位共用一个每回合次数上限**（默认 3，面板可调，0 = 不限），**只算干员**：装备两条路都不占，额度用完了照样能买装备。干员用满后两条路都会被服务端拒绝。
 - **过场等待只在单人局跟着倍速缩短**（见「倍速」一节）。同盟房间有两个以上真人时不动那三段，理由是不砍别人的决策时间。
 - 沙盒「单位」那一栏是**按干员算的，不是按棋子**：同一个干员的复数张卡一起吃同一套改动（属性本来就挂在干员定义上，游戏里没有「只改这一颗棋子」的地方）。改完要看效果得**等下一场战斗**，已经开打的那场用的是开战前拷进单位里的那份数值。
-- 面板的按钮、倍速条、自动倒转条初始位置都在屏幕右侧，**可以拖动**，位置存在浏览器 local storage 里；面板大小、列表画法（名字/立绘）、每回合上限、倍速和自动倒转的目标也存在那里，刷新页面后会补推给服务端。存下来的是**像素值**，对应拖动时那个窗口，所以换过窗口大小或屏幕之后，条会被**自动拉回可见范围**；拉不回来的（比如整条都在屏幕外）就点面板标题栏的**「复位」**，三条一起回到默认位置。
+- 面板的按钮、倍速条、自动倒转条初始位置都在屏幕右侧，**可以拖动**，位置存在浏览器 local storage 里；面板大小、列表画法（名字/立绘）、每回合上限、倍速和自动倒转的目标也存在那里，刷新页面后会补推给服务端。存下来的是**像素值**，对应那个窗口：换过窗口大小或屏幕之后，条会被**自动拉回可见范围**，面板也会**自动收进新视口**，而记住的值本身不动（回到大屏还是原来那个盒子）；拉不回来的（比如整条都在屏幕外）就点面板标题栏的**「复位」**，三条一起回到默认位置。
 - **自选位那套配置是进程级的**（一份配置对整个服务端生效，不是每个座位一份），因为改到的是棋子定义本身，而定义不认座位。实际只有真人座位会带自选干员，所以日常用不出区别；两个真人同服且都用自造位子时，位子 id 一样就会共享同一份配置。
 - **盟约的数值不按位子**（见「自选位」一节）：一条盟约只有一个记录，改了就落在场上每一个带它的干员身上。特质是按位子各一份的。
 - **总开关管的是「从这一刻起」**：战斗已经开打的那一场，它装进去的策略、数值、地块解锁会打完这一场（下一场才干净）；沙盒策略叠起来时抬高的起手 LP 也收不回来，因为生命值已经花掉了，游戏里没有回收它的地方。
@@ -396,4 +416,4 @@ node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌�
 - **游戏目录记在 `mod.config.json` 的 `gameRoot`**。选过一次之后会写进去，下次直接用；`--game` 和拖到 `start.cmd` 上只对这一次生效，不写回。
 - 手机那边的面板**字号跟着游戏的「设置 → 文字大小」走**，不是自己一套。所以如果你在手机上把游戏字号留成「小」，面板也跟着小（游戏自己也是小的）；调大之后两边一起变清楚。桌面上这一套的首屏大小跟以前完全一样。
 - 手机 / 小窗口下，面板张开时「倍速 / 自动买卖 / 沙盒」三条悬浮条会被藏起来（面板铺得几乎满屏，它们原本会压在上面），关掉面板立刻回来。
-- **安卓版没有真机验证过**：云端只跑到「编译通过 + APK 产出」，装到手机上的运行没有实测。
+- **安卓版在模拟器上验过，真机没验**：雷电 9（Android 9、x86_64，靠 ARM 翻译跑 arm64 的 libnode）上从安装到进对局面板可用，整条走通了；真手机上的触屏手感与性能还是没试过。
