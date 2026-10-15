@@ -273,6 +273,7 @@ function applyTouchLayout() {
   if (!el) return;
   const small = SMALL_W.matches || SMALL_H.matches || remPx() < 64;
   try { el.classList.toggle('spmod-touch', small || coarsePointer()); } catch { /* ignore */ }
+  applySize(); // a stored size is pixels for the window it was chosen in, so every re-layout re-fits it (see fitSize)
 }
 for (const mq of [SMALL_W, SMALL_H, COARSE, ANY_COARSE]) {
   if (typeof mq.addEventListener === 'function') mq.addEventListener('change', applyTouchLayout);
@@ -295,7 +296,34 @@ function loadPrefs() {
 }
 loadPrefs();
 
-/** Push the current size onto the panel (px when the player chose one, the CSS rem default otherwise). */
+/** The largest box the window allows right now. The 满 preset is exactly this, so it doubles as the clamp. */
+function sizeLimits() {
+  const r = remPx();
+  return {
+    minW: MIN_W * r,
+    minH: MIN_H * r,
+    maxW: Math.max(MIN_W * r, window.innerWidth * 0.96),
+    maxH: Math.max(MIN_H * r, window.innerHeight * 0.94),
+  };
+}
+
+/** Fit a wanted size into what the window allows; `Infinity` means "as big as it goes" (the 满 preset). */
+function fitSize(w, h) {
+  const L = sizeLimits();
+  return {
+    w: Math.max(L.minW, Math.min(L.maxW, w)),
+    h: Math.max(L.minH, Math.min(L.maxH, h)),
+  };
+}
+
+/**
+ * Push the current size onto the panel (px when the player chose one, the CSS rem default otherwise).
+ *
+ * A stored size is a pair of pixels for the window it was chosen in, so it is fitted on the way out: a box picked on a
+ * desktop (满 is 96% of *that* viewport) would otherwise hang off a phone, its header and footer cut off by the
+ * centring transform. Same idea as clampBar for the floating bars. The stored value is left as it was, so the desktop
+ * box is still there when the window grows back.
+ */
 function applySize() {
   panel.classList.toggle('is-sized', !!local.size); // is-sized pins the height; without it the panel hugs its content
   if (!local.size) {
@@ -303,8 +331,9 @@ function applySize() {
     panel.style.removeProperty('--spmod-h');
     return;
   }
-  panel.style.setProperty('--spmod-w', `${Math.round(local.size.w)}px`);
-  panel.style.setProperty('--spmod-h', `${Math.round(local.size.h)}px`);
+  const s = fitSize(local.size.w, local.size.h);
+  panel.style.setProperty('--spmod-w', `${Math.round(s.w)}px`);
+  panel.style.setProperty('--spmod-h', `${Math.round(s.h)}px`);
 }
 
 function saveSize() {
@@ -320,11 +349,7 @@ function presetOf() {
 
 function setSize(wRem, hRem) {
   const r = remPx();
-  const maxW = Math.max(MIN_W * r, window.innerWidth * 0.96);
-  const maxH = Math.max(MIN_H * r, window.innerHeight * 0.94);
-  const w = wRem == null ? maxW : Math.max(MIN_W * r, Math.min(maxW, wRem * r));
-  const h = hRem == null ? maxH : Math.max(MIN_H * r, Math.min(maxH, hRem * r));
-  local.size = { w, h };
+  local.size = fitSize(wRem == null ? Infinity : wRem * r, hRem == null ? Infinity : hRem * r);
   saveSize();
   applySize();
   render(true);
@@ -340,13 +365,7 @@ grip.addEventListener('pointerdown', (e) => {
 });
 grip.addEventListener('pointermove', (e) => {
   if (!sizeDrag) return;
-  const r = remPx();
-  const maxW = Math.max(MIN_W * r, window.innerWidth * 0.96);
-  const maxH = Math.max(MIN_H * r, window.innerHeight * 0.94);
-  local.size = {
-    w: Math.max(MIN_W * r, Math.min(maxW, sizeDrag.w + (e.clientX - sizeDrag.x))),
-    h: Math.max(MIN_H * r, Math.min(maxH, sizeDrag.h + (e.clientY - sizeDrag.y))),
-  };
+  local.size = fitSize(sizeDrag.w + (e.clientX - sizeDrag.x), sizeDrag.h + (e.clientY - sizeDrag.y));
   applySize();
 });
 grip.addEventListener('pointerup', (e) => {

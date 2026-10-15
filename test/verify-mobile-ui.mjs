@@ -10,6 +10,7 @@
 //   窗口   1100×620（无触屏，布局根 57px）：照样挂上 spmod-touch
 //   手机   844×390：挂上 spmod-touch，正文 ≥ 10px，可点的行 ≥ 30px 高，面板不越出视口
 //   字号   把 <html> 的 data-text 拨到 xl（游戏的「文字大小：特大」）：面板字号跟着变大
+//   改尺寸 在 1600×900 上点「满」，再换到 844×390：面板要重新收进视口，且记住的值不被改掉
 //
 // Self-contained: the game's release package ships no `test/`, so this drives the page itself.
 
@@ -213,6 +214,30 @@ if (SHOT) {
   await page.screenshot({ path: SHOT });
   console.log(`  · 手机视口截图：${SHOT}`);
 }
+
+// 尺寸是「为哪块屏选的、就按那块屏的像素存」，所以换小屏之后必须重新收进视口。手机上最刺眼的一档是「满」：
+// 桌面 1600×900 上它是 1536×846，原样搬到 844×390 的视口，面板会因为居中定位上下都溢出（y 变负）。
+await check('换小视口：存下来的尺寸重新收进视口，且没把存的值改掉', async () => {
+  await closePanel();
+  await setViewport({ width: 1600, height: 900 });
+  await openPanel();
+  assert.ok(await clickText('^满$'), '没点到「满」');
+  await sleep(500);
+  const big = await probe();
+  assert.ok(big.panel.h > 400, `「满」没生效，面板只有 ${big.panel.h.toFixed(1)}px 高`);
+  const stored = await page.evaluate(() => localStorage.getItem('spmod.size'));
+
+  await closePanel();
+  await setViewport({ width: 844, height: 390, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  await openPanel();
+  const s = await probe();
+  assert.ok(s.panel.y >= -1, `面板上边被裁掉：y=${s.panel.y.toFixed(1)}（存的是 ${big.panel.w.toFixed(0)}×${big.panel.h.toFixed(0)}）`);
+  assert.ok(s.panel.y + s.panel.h <= s.vh + 1, `面板下边越界：${(s.panel.y + s.panel.h).toFixed(1)} > ${s.vh}`);
+  assert.ok(s.panel.x >= -1 && s.panel.x + s.panel.w <= s.vw + 1, `面板左右越界：${s.panel.x.toFixed(1)} … ${(s.panel.x + s.panel.w).toFixed(1)} / ${s.vw}`);
+  assert.ok(s.panel.h <= s.vh, `面板比视口还高：${s.panel.h.toFixed(1)} > ${s.vh}`);
+  const after = await page.evaluate(() => localStorage.getItem('spmod.size'));
+  assert.equal(after, stored, '收进视口时把记住的尺寸改掉了（回到大屏应该还是原来那个盒子）');
+});
 
 await check('手机：面板张开时三条悬浮条让位，关上就回来', async () => {
   const visible = () => page.evaluate(() => ['.spmod-speed', '.spmod-auto', '.spmod-sandbox']
