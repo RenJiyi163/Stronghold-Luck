@@ -38,7 +38,7 @@ import { baseChessId, createUnitPatcher, normalizeUnitCfg, UNIT_SCOPES, unitCove
 import { autoCardAllowedNow, autoClassOf } from '../public/auto-rules.js';
 import {
   applySlotOverride, createSlotPatcher, EXTRA_TIERS, extraDiyData, extraDiyTable, extraSlotId, hasNumberEdits,
-  isExtraSlotId, MAX_EXTRA_SLOTS, normalizeSlotCfg, patchGameData, slotBaseId,
+  isExtraSlotId, MAX_EXTRA_SLOTS, normalizeSlotCfg, patchContentSeam, patchGameData, slotBaseId,
 } from '../public/slot-rules.js';
 
 export const PICK_TYPE = 'g.modPick';
@@ -1068,21 +1068,22 @@ function installSandbox({ Match, PlayerState, EffectDispatcher, board, Battle, b
   // -- the BATTLE side of the extra strategies --
   // `bands/battle.js install()` walks `battle.players` and installs the IN_BATTLE buffs of each player's single
   // `bandId`; the strategies whose whole effect is combat (歌利亚, 阿米娅, 卡莱莎, Touch …) live nowhere else. The extras
-  // ride on the battle spec (`battleInput` → the player entry), so patching the one seam every Battle construction goes
+  // ride on the battle spec (`battleInput` → the player entry), so hooking the one seam every Battle construction goes
   // through covers both processes. `install()` itself is not re-enterable per band, so the extras go in one at a time
   // with the other players masked out: only the extra's own buffs land, and nobody's are installed twice.
-  if (typeof Battle?.prototype?._safe !== 'function' || typeof bands?.install !== 'function') {
-    missing.push('Battle.prototype._safe');
+  //
+  // The seam is the content install (slot-rules.patchContentSeam): 0.3.0 dropped the `_safe('installContent')` wrapper
+  // the mod used to hang this on. Registered before the 自选位 numbers hook so that the extras install while the patched
+  // data is still swapped in — the order the two `_safe` wrappers had it.
+  if (typeof bands?.install !== 'function'
+    || !patchContentSeam(Battle, {
+      afterInstall: (b) => {
+        try { installExtraBands(b, bands); } catch (e) { log.warn('battle-side extra strategies failed', e?.message || e); }
+      },
+    })) {
+    missing.push('the battle content install (extra strategies)');
   } else {
-    const origSafe = Battle.prototype._safe;
-    Battle.prototype._safe = function _safe(fn, label, owner) {
-      const res = origSafe.call(this, fn, label, owner);
-      if (label === 'installContent') {
-        try { installExtraBands(this, bands); } catch (e) { log.warn('battle-side extra strategies failed', e?.message || e); }
-      }
-      return res;
-    };
-    log.info('hooked Battle.prototype._safe (battle-side extra strategies)');
+    log.info('hooked the battle content install (battle-side extra strategies)');
   }
 
   return missing;
@@ -1841,23 +1842,24 @@ function installSlotRules({ PlayerState, Battle, GameData, DataSource, support, 
 
   // the BATTLE side reads its numbers from `support.gameData()`; the swap has to bracket the content install, which is
   // the one moment every bond / 特质 installer reads its `bb` (they capture it then and re-apply from the closure).
-  if (typeof Battle?.prototype?._safe === 'function') {
-    const origSafe = Battle.prototype._safe;
-    Battle.prototype._safe = function _safe(fn, label, owner) {
-      if (label !== 'installContent' || !slotDeps.support) return origSafe.call(this, fn, label, owner);
+  // A stack, not a single slot: one Battle's install never nests another's today, and if it ever did the bracket would
+  // still unwind in the right order.
+  const swapStack = [];
+  if (slotDeps.support && patchContentSeam(Battle, {
+    beforeInstall: () => {
       const base = slotDeps.support.gameData();
       const patched = patchedDataOf(base);
-      if (patched === base) return origSafe.call(this, fn, label, owner);
-      slotDeps.support.setGameData(patched);
-      try {
-        return origSafe.call(this, fn, label, owner);
-      } finally {
-        slotDeps.support.setGameData(base);
-      }
-    };
-    log.info('hooked Battle.prototype._safe (自选位 numbers)');
+      swapStack.push(base);
+      if (patched !== base) slotDeps.support.setGameData(patched);
+    },
+    afterInstall: () => {
+      const base = swapStack.pop();
+      if (base !== undefined) slotDeps.support.setGameData(base);
+    },
+  })) {
+    log.info('hooked the battle content install (自选位 numbers)');
   } else {
-    missing.push('Battle.prototype._safe');
+    missing.push('the battle content install (自选位 numbers)');
   }
 
   if (typeof PlayerState?.prototype?.setDiy !== 'function') {

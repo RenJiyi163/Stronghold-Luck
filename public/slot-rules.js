@@ -422,3 +422,79 @@ export function extraDiyTable(diy, extras) {
   }
   return { ...diy, slots: { ...(diy.slots || {}), ...data.slots }, prototypes, locked };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// 内容安装的那条缝 (the content-install seam)
+//
+// Both halves of the mod need to run something immediately around a Battle's content install: the battle-side extra
+// strategies install their band buffs right after it, and the 自选位 numbers have to be swapped into `support.gameData()`
+// for exactly as long as it runs (the bond / 特质 / band installers read their `bb` then and re-apply it from their
+// closures afterwards).
+//
+// Up to 0.2.6 that was one method call — `this._safe(() => installContent(this, …), 'installContent')` — so wrapping
+// `Battle.prototype._safe` wrapped the install, which is what the mod did. **0.3.0 calls `installContent(this, …)`
+// straight from the constructor and the label is gone**, so the wrapper went quiet: extras stopped being installed and
+// the numbers stopped being swapped, both without an error anywhere.
+//
+// The bracket is rebuilt out of the two property accesses that now sit on either side of the call (server/sim/Battle.js
+// constructor):
+//
+//     this.contentMode = opts.content ?? 'full';            ← assigned immediately before the install
+//     try { installContent(this, { mode: this.contentMode, … }); } …
+//     if (this.contentFault) { … }                          ← the first read after it returns
+//
+// Neither is created as an own property on a healthy battle — `contentFault` only ever appears when a DSL kit throws
+// (content/index.js) — so prototype accessors catch both moments for every construction, in-page and server-side alike.
+// Nothing else in the game assigns `contentMode`, so the accessor fires exactly once per battle.
+
+/** The hook lists of one already-patched Battle class, keyed by its prototype. */
+const contentSeams = new WeakMap();
+
+/**
+ * Register hooks around every content install of `Battle`. Idempotent per class: the accessors go in once, later calls
+ * only append hooks. `beforeInstall` runs in registration order just before the install, `afterInstall` just after it
+ * returns — the order matters, so register the hooks that must run innermost first.
+ *
+ * @param {Function} Battle  the game's Battle class (`server/sim/Battle.js` / `/sim/Battle.js`)
+ * @param {{ beforeInstall?: (battle: object) => void, afterInstall?: (battle: object) => void }} hooks
+ * @returns {boolean} whether the class carries the seam (false = nothing to hang the hooks on)
+ */
+export function patchContentSeam(Battle, { beforeInstall = null, afterInstall = null } = {}) {
+  const proto = Battle?.prototype;
+  if (!proto) return false;
+
+  let seam = contentSeams.get(proto);
+  if (!seam) {
+    seam = { before: [], after: [], armed: new WeakSet(), done: new WeakSet() };
+    const run = (list, battle) => { for (const fn of list) { try { fn(battle); } catch { /* the install must go on */ } } };
+    // the install has returned: run the after-hooks once per battle
+    const finish = (battle) => {
+      if (!seam.armed.has(battle) || seam.done.has(battle)) return;
+      seam.done.add(battle);
+      run(seam.after, battle);
+    };
+    try {
+      Object.defineProperty(proto, 'contentMode', {
+        configurable: true,
+        get() { return this.__modContentMode; },
+        set(v) {
+          this.__modContentMode = v; // the install reads it back immediately, before any other assignment
+          if (seam.armed.has(this)) return;
+          seam.armed.add(this);
+          run(seam.before, this);
+        },
+      });
+      Object.defineProperty(proto, 'contentFault', {
+        configurable: true,
+        get() { finish(this); return this.__modContentFault; },
+        set(v) { this.__modContentFault = v; finish(this); },
+      });
+    } catch {
+      return false; // a future version already defines one of them: leave the class alone rather than half-patch it
+    }
+    contentSeams.set(proto, seam);
+  }
+  if (typeof beforeInstall === 'function') seam.before.push(beforeInstall);
+  if (typeof afterInstall === 'function') seam.after.push(afterInstall);
+  return true;
+}

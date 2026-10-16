@@ -2,8 +2,8 @@
 //
 //   node test/verify.mjs [--game <dir>]
 //
-// Installs the patch into a bare Node process and drives a real Match through the game's own test harness
-// (test/match/harness.js), then asserts the shop behaviour. Nothing here touches the game's files.
+// Installs the patch into a bare Node process and drives a real Match through the mod's own harness
+// (test/helpers/harness.mjs), then asserts the shop behaviour. Nothing here touches the game's files.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -43,7 +43,8 @@ assert.ok(status.ok, `patch anchors missing: ${status.missing.join(', ')}`);
 assert.ok(status.logFile, 'recorder did not open a log file');
 
 const { C2S, validateC2S } = await imp('shared/protocol.js');
-const { DATA, makeMatch, checkInvariants } = await imp('test/match/harness.js');
+// the mod's own harness (test/helpers/harness.mjs): 0.3.0 dropped the game-side one this used to import
+const { DATA, makeMatch, checkInvariants } = await import(pathToFileURL(path.join(HERE, 'helpers', 'harness.mjs')).href);
 
 console.log('\n[意图注册]');
 check('C2S 里有 g.modPick（服务端与浏览器共用同一张表）', () => {
@@ -221,7 +222,7 @@ check('privateView 带 quota', () => {
   const q = ps.privateView().shop.modPickable.quota;
   assert.ok(q && Number.isInteger(q.used) && Number.isInteger(q.limit), JSON.stringify(q));
 });
-check('上限 3：三次动作内成功，第四次起 MOD_LIMIT（自选与直购共用）', () => {
+check('上限 3：三次干员动作内成功，第四次起 MOD_LIMIT（自选与直购共用；装备不吃额度）', () => {
   h.toPrep(2); // 进第 2 回合，额度随回合重置
   ps.funds = 60;
   assert.deepEqual(m.handle('p_0', { t: CONFIG_TYPE, pickLimit: 3 }), { ok: true });
@@ -230,9 +231,16 @@ check('上限 3：三次动作内成功，第四次起 MOD_LIMIT（自选与直�
   assert.ok(t1.length >= 2 && pk.item.length >= 1, 'round 2 有可选项');
   assert.deepEqual(m.handle('p_0', { t: PICK_TYPE, slot: 0, id: t1[0] }), { ok: true });
   assert.deepEqual(m.handle('p_0', { t: PICK_TYPE, slot: 1, id: t1[1] }), { ok: true });
+  // 装备不计数（作者 2026-10-10）：额度管的是往场上塞干员，装备当场买当场穿，所以这一笔放行但不吃名额
   assert.deepEqual(m.handle('p_0', { t: PICK_TYPE, slot: ps.shop.slots.length - 1, id: pk.item[0] }), { ok: true });
-  assert.equal(m.handle('p_0', { t: BUY_TYPE, id: t1[0] }).error, MOD_LIMIT, '第 4 次直购应被拒');
-  assert.equal(m.handle('p_0', { t: PICK_TYPE, slot: 0, id: t1[0] }).error, MOD_LIMIT, '第 4 次自选应被拒');
+  assert.equal(ps.privateView().shop.modPickable.quota.used, 2, '装备不该吃额度');
+  // 第三个名额花在一笔直购上，自选与直购共用同一个计数
+  assert.deepEqual(m.handle('p_0', { t: BUY_TYPE, id: t1[0] }), { ok: true });
+  assert.equal(ps.privateView().shop.modPickable.quota.used, 3);
+  assert.equal(m.handle('p_0', { t: BUY_TYPE, id: t1[1] }).error, MOD_LIMIT, '第 4 次直购应被拒');
+  assert.equal(m.handle('p_0', { t: PICK_TYPE, slot: 2, id: t1[0] }).error, MOD_LIMIT, '第 4 次自选应被拒');
+  // 不计数的那一类不受额度影响：额度用完，装备照放行
+  assert.deepEqual(m.handle('p_0', { t: PICK_TYPE, slot: ps.shop.slots.length - 1, id: pk.item[0] }), { ok: true });
 });
 check('改回 0 = 不限，继续可用', () => {
   assert.deepEqual(m.handle('p_0', { t: CONFIG_TYPE, pickLimit: 0 }), { ok: true });
@@ -348,14 +356,17 @@ check('C2S 里有 g.modSpeed，校验范围 1–16 的整数', () => {
 
 console.log('\n[自动倒转]');
 
-check('C2S 里有 g.modAuto，五个字段一并校验', () => {
+check('C2S 里有 g.modAuto，七个字段一并校验', () => {
   assert.ok(Object.hasOwn(C2S, AUTO_TYPE));
-  const ok = { t: AUTO_TYPE, on: true, cardId: 'chess_char_3_13_a', cycles: 5, equipCoins: true, idCard: false };
+  const ok = { t: AUTO_TYPE, on: true, cardIds: ['chess_char_3_13_a'], cycles: 5, equipCoins: true, idCard: false, refresh: false, mode: 'shop' };
   assert.equal(validateC2S(ok), null);
   assert.ok(validateC2S({ ...ok, on: 'yes' }));
-  assert.ok(validateC2S({ ...ok, cardId: '' }));
+  assert.ok(validateC2S({ ...ok, cardIds: [] }), '空目标表应被拒');
+  assert.ok(validateC2S({ ...ok, cardIds: [''] }), '空 id 应被拒');
   assert.ok(validateC2S({ ...ok, cycles: 0 }));
   assert.ok(validateC2S({ ...ok, equipCoins: 1 }));
+  assert.ok(validateC2S({ ...ok, refresh: 1 }));
+  assert.ok(validateC2S({ ...ok, mode: 'nope' }));
 });
 
 {
@@ -379,7 +390,10 @@ check('C2S 里有 g.modAuto，五个字段一并校验', () => {
 
   const funds0 = ps.funds;
   const chess0 = ps.allChess().length;
-  const auto = (over = {}) => ({ t: AUTO_TYPE, on: true, cardId: 'chess_char_3_13_a', cycles: 20, equipCoins: true, idCard: false, ...over });
+  // `mode: 'direct'`: the loop takes its target straight out of the pool (g.modBuy), so a batch runs without the shop
+  // having to offer it and without paying for rolls — which is what this block asserts (资金不减、不吃额度、白嫖).
+  // The `shop` mode (roll the shop until the target appears) is covered by verify-auto.mjs.
+  const auto = (over = {}) => ({ t: AUTO_TYPE, on: true, cardIds: ['chess_char_3_13_a'], cycles: 20, equipCoins: true, idCard: false, refresh: false, mode: 'direct', ...over });
 
   check('modPickable.pool = 本局协议里有的卡，与等级无关、不含隐藏卡', () => {
     const pk = ps.privateView().shop.modPickable;
@@ -422,7 +436,7 @@ check('C2S 里有 g.modAuto，五个字段一并校验', () => {
 
   check('掉落物：目标卡掉出来的币会被装备掉，不留手里', () => {
     ps.funds = 200;
-    assert.deepEqual(ma.handle('p_0', auto({ cardId: 'chess_char_3_03_a', cycles: 3 })), { ok: true }); // 诗怀雅
+    assert.deepEqual(ma.handle('p_0', auto({ cardIds: ['chess_char_3_03_a'], cycles: 3 })), { ok: true }); // 诗怀雅
     assert.ok(!ps.hand.some((p) => p && typeof p.id === 'string' && p.id.startsWith('chess_item_1_03_e')), '还留着没装备的盟约之币');
   });
 
@@ -475,7 +489,8 @@ check('结算事件带 LP 前后', () => {
 });
 
 check('日志里有 auto 摘要（一批一行，不逐动作刷屏）', () => {
-  assert.ok(events.some((e) => e.k === 'auto' && e.cardId), '没有 auto 事件');
+  // the batch names its whole ticked set (`cardIds`): one target was the old shape, before several shared the loop
+  assert.ok(events.some((e) => e.k === 'auto' && e.cardIds?.length > 0), '没有 auto 事件');
 });
 
 console.log(`\n结果：${pass} 通过，${fail} 失败\n`);

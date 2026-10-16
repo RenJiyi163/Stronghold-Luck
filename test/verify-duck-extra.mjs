@@ -52,7 +52,9 @@ function world(seats) {
     // the rest of a dispatch's walk reads these; empty is enough (no bond / item / persistent-effect handlers here)
     board: new Map(), hand: [], temp: [],
   }));
-  const gd = { raw: {}, bondIds: [], enemy: () => ({ rank: 'NORMAL' }) };
+  // gd.band: the game's own band step of a dispatch reads it (effectsMeta.js `band: this.m.gd.band(ps.bandId)`).
+  // No `band:` handler is registered here — the duck is a global — so null is the honest answer.
+  const gd = { raw: {}, bondIds: [], band: () => null, enemy: () => ({ rank: 'NORMAL' }) };
   for (const p of players) p.gd = gd;
   const m = {
     round: 5, modeId: 'mode_solo', difficulty: 'ABYSS', isSolo: true, isCoop: false, roomCode: 'ducktest',

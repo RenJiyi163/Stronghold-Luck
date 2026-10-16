@@ -24,7 +24,7 @@ Windows 双击 `start.cmd`，macOS / Linux 跑 `./start.sh`，浏览器会自动
 - 改 `mod.config.json` 的 `gameRoot`（JSON 里反斜杠写两个：`"E:\\Games\\Stronghold-Protocol"`）；
 - 命令行 `node src/launcher.mjs --game "E:\Games\Stronghold-Protocol"`。
 
-**它会认游戏版本。** 不是 0.2.6 时启动时打一行提醒；上游改过锚点的话，面板会整块不出现（见「游戏更新了怎么办」）。
+**它会认游戏版本。** 不是 0.3.0 时启动时打一行提醒；上游改过锚点的话，面板会整块不出现（见「游戏更新了怎么办」）。
 
 命令行也行：
 
@@ -347,18 +347,22 @@ test/                  三层自检
 **这个游戏不会自动更新，也没有版本检查。** 它联网只做一件事：`tools/build-data.mjs`、`tools/fetch-assets.mjs` 去 `raw.githubusercontent.com` 拉**游戏素材和数据表**（跟代码仓库本身无关）。所以更新完全靠你自己去 GitHub 看：
 
 - 仓库：`https://github.com/sganggs/Stronghold-Protocol`（Releases 里的整合包 / 或者你自己 `git pull`）
-- 本地这份是 **0.2.6**，`package.json` 里的 `version` 就是当前版本号。
+- 本地这份是 **0.3.0**，`package.json` 里的 `version` 就是当前版本号。
 
 **更新之后**：把游戏目录换掉（或 pull），然后**重新双击 `start.cmd`** 就行。绝大多数情况下外挂不需要任何改动，因为它一个字节都没写进游戏目录。只有在控制台出现 `anchors not found` 时才需要改 `src/server-patch.mjs`：它会告诉你是哪个锚点没了。
+
+**但「没有报错」不等于「还在起作用」。** 0.2.6 → 0.3.0 就踩过一次：游戏把 `Battle` 构造里那句 `this._safe(() => installContent(…), 'installContent')` 改成了直接调用 `installContent(…)`，标签没了，外挂挂在这个标签上的两个东西（沙盒的**战斗侧策略**、自选位的**战斗内数值**）就一起静默失效了。锚点检查看不出来（`Battle.prototype._safe` 还在），控制台也一句都不说。所以更新之后除了看 `anchors not found`，还要**跑一遍自检**（下面那一节）。这次两处都换成挂在 `contentMode` / `contentFault` 这两个属性访问上（见 `public/slot-rules.js` 的 `patchContentSeam`），它们正好卡在内容安装的前后。
+
+顺带一提，0.3.0 加了**插件系统**（数据 / 外观 / 界面插件，`plugins/` 目录，房间顶部有「原版 / 插件」面板）。这一份外挂没有改用它：插件能改的数值、经济、波次和素材，跟这里要的「改手柄而不是改内容」不是一回事（自选商店要读玩家当下的手牌与卡池、倍速要动 `Match.gameSpeed`、沙盒要换战斗逻辑），而且插件的沙盒不提供这些接口。两套可以并存：不开插件时房间就是原版玩法，外挂照常工作。
 
 ---
 
 ## 自检
 
 ```
-node test/verify.mjs         # 引擎层：借游戏自己的测试脚手架跑真实对局，46 项
-node test/verify-e2e.mjs     # 端到端：真起启动器，走 HTTP + WebSocket 打一局，20 项
-node test/verify-ui.mjs      # 真浏览器（无头 Chrome）点一局，23 项；含战斗中途切倍速，顺带验补丁失效时面板会自己隐藏
+node test/verify.mjs         # 引擎层：用外挂自带的测试脚手架（test/helpers/harness.mjs）跑真实对局，55 项
+node test/verify-e2e.mjs     # 端到端：真起启动器，走 HTTP + WebSocket 打一局，23 项
+node test/verify-ui.mjs      # 真浏览器（无头 Chrome）点一局，26 项；含战斗中途切倍速，顺带验补丁失效时面板会自己隐藏
 node test/verify-diy-ui.mjs   # 真浏览器：当场配一份自选编队再打一局，验自选干员的列出、等级门槛、两种视图与四个尺寸，15 项
 node test/verify-sandbox-ui.mjs # 真浏览器：叠策略（含效果真的跑到的正面证据）、地块解锁的阴性对照与回合切换后不被撤回，18 项
 node test/verify-unit-ui.mjs  # 真浏览器：改技能/技力/属性，含三档作用目标、别的干员不动的阴性对照，以及开战后那颗棋子真的带着新数值，12 项
@@ -374,9 +378,11 @@ node test/verify-pickgame.mjs      # 无头：选目录用的 PowerShell 脚本�
 node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌面阴性对照、1100×620、844×390 真视口的字号与点击目标、文字大小跟随、换小视口后尺寸重新收进视口、面板张开时悬浮条让位），8 项；加 --shot <文件> 存一张手机视口的截图
 ```
 
-前三个要用游戏自带的 `test/` 目录（`verify.mjs` 借它的对局脚手架，`verify-*.mjs` 借它的 e2e 客户端）。**发布包不带 `test/`**，只有 Git 仓库里有，所以从压缩包装的游戏跑不了这三条。其余各条都只用 `mod.config.json` 里的游戏目录：`verify-diy-ui.mjs`、`verify-sandbox-ui.mjs`、`verify-unit-ui.mjs`、`verify-auto-ui.mjs` 自己驱动页面，`verify-auto.mjs` 直接在引擎上打一局（虚拟时钟，不起服务器也不开浏览器）。`verify-findgame.mjs` 和 `verify-pickgame.mjs` 连游戏都不需要，整棵树造在系统临时目录里。
+前三个原先借的是游戏自带的 `test/` 目录（对局脚手架与 e2e 客户端）。**上游在 0.3.0 把整个 `test/` 从发布包里删了**（只剩 `test/helpers/battleHarness.js`，那只造战斗、不造对局），所以这一份改用它自带的 `test/helpers/`：`harness.mjs`（对局）、`wsClient.js`（WebSocket 测试客户端）、`e2eClient.mjs`（真浏览器客户端），都是从 v0.2.6 原样抄过来的，只把 import 的落点改到游戏目录。这三样在仓库里，随外挂一起走，从压缩包装的游戏也跑得起来。
 
-它们都需 `npm i`（装的是 `puppeteer-core`，只用于自检，游戏运行时用不到）和一个 Chrome/Edge。截图会落在**游戏目录**的 `test/e2e/out/`（那是游戏自己的截图目录，已在它的 `.gitignore` 里）；外挂不会往游戏目录写别的任何东西。
+其余各条都只用 `mod.config.json` 里的游戏目录：`verify-diy-ui.mjs`、`verify-sandbox-ui.mjs`、`verify-unit-ui.mjs`、`verify-auto-ui.mjs` 自己驱动页面，`verify-auto.mjs` 直接在引擎上打一局（虚拟时钟，不起服务器也不开浏览器）。`verify-findgame.mjs` 和 `verify-pickgame.mjs` 连游戏都不需要，整棵树造在系统临时目录里。
+
+它们都需 `npm i`（装的是 `puppeteer-core`，只用于自检，游戏运行时用不到）和一个 Chrome/Edge。截图现在落在外挂自己的 `test/e2e/out/`；外挂照旧不往游戏目录写任何东西。
 
 ### 安卓壳怎么验（不用真机）
 
@@ -389,7 +395,7 @@ node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌�
   adb push <游戏目录>/public/assets  /data/data/com.strongholdluck.android/files/game/public/
   adb push <游戏目录>/public/fonts   /data/data/com.strongholdluck.android/files/game/public/
   adb push <游戏目录>/data/local-assets.json /data/data/com.strongholdluck.android/files/game/data/
-  adb shell "echo -n 0.2.6 > /data/data/com.strongholdluck.android/files/game/.assets-ready"
+  adb shell "echo -n 0.3.0 > /data/data/com.strongholdluck.android/files/game/.assets-ready"
   adb shell "chown -R 10051:10051 /data/data/com.strongholdluck.android/files && restorecon -R /data/data/com.strongholdluck.android/files"
   ```
   （`10051` 是应用的 uid（`u0_a51`），核一下用 `adb shell pm list packages -U | grep strongholdluck`。`.code-ready` 由应用自己写。）

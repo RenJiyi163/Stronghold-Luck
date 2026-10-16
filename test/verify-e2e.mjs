@@ -98,7 +98,7 @@ try {
   });
 
   console.log('\n[一局真实对局（走 WebSocket 隧道）]');
-  const { TestClient } = await import(pathToFileURL(path.join(gameRoot, 'test', 'helpers', 'wsClient.js')).href);
+  const { TestClient } = await import(pathToFileURL(path.join(HERE, 'helpers', 'wsClient.js')).href);
   const c = await TestClient.connect(`ws://127.0.0.1:${port}/ws`, { timeout: 8000 });
   await c.hello('LuckTest');
   await c.request({ t: 'room.create', mode: 'solo', difficulty: 'FUNNY' });
@@ -202,21 +202,23 @@ try {
   });
 
   console.log('\n[自动买卖]');
+// the panel's own payload shape, `refresh` and `mode` included — a batch missing either is refused at the door
+const autoMsg = (over = {}) => ({ t: 'g.modAuto', on: true, cardIds: ['chess_char_3_13_a'], cycles: 5, equipCoins: true, idCard: false, refresh: false, mode: 'shop', ...over });
 await check('g.modAuto 走完整链路：服务端把结果写进 privateView', async () => {
-  const r = await c.request({ t: 'g.modAuto', on: true, cardIds: ['chess_char_3_13_a', 'chess_char_3_03_a'], cycles: 5, equipCoins: true, idCard: false });
+  const r = await c.request(autoMsg({ cardIds: ['chess_char_3_13_a', 'chess_char_3_03_a'] }));
   assert.equal(r.t, 'ok', JSON.stringify(r));
   const after = await c.waitFor('m.private', (m) => m.modAuto && m.modAuto.cardIds?.length === 2, 3000);
   assert.ok(Number.isFinite(after.modAuto.done), JSON.stringify(after.modAuto));
   assert.equal(after.modAuto.cycles, 5);
 });
 await check('停表：on:false 只记录，不动手', async () => {
-  const r = await c.request({ t: 'g.modAuto', on: false, cardIds: ['chess_char_3_13_a'], cycles: 5, equipCoins: true, idCard: false });
+  const r = await c.request(autoMsg({ on: false }));
   assert.equal(r.t, 'ok', JSON.stringify(r));
   const after = await c.waitFor('m.private', (m) => m.modAuto && m.modAuto.on === false, 3000);
   assert.equal(after.modAuto.on, false);
 });
 await check('参数不合法被拒（cycles 越界 / cardIds 空 / 目录外的卡）', async () => {
-  const bad = { t: 'g.modAuto', on: true, cardIds: ['chess_char_3_13_a'], cycles: 5, equipCoins: true, idCard: false };
+  const bad = autoMsg();
   assert.equal((await c.request({ ...bad, cycles: 0 })).t, 'error');
   assert.equal((await c.request({ ...bad, cardIds: [] })).t, 'error');
   assert.equal((await c.request({ ...bad, equipCoins: 1 })).t, 'error');

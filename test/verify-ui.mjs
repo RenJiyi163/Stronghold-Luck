@@ -41,7 +41,7 @@ const base = `http://127.0.0.1:${port}`;
 
 const require = createRequire(path.join(MOD_ROOT, 'package.json'));
 const puppeteer = (await import(pathToFileURL(require.resolve('puppeteer-core')).href)).default;
-const { Client } = await import(pathToFileURL(path.join(gameRoot, 'test', 'e2e', 'client.mjs')).href);
+const { Client } = await import(pathToFileURL(path.join(HERE, 'helpers', 'e2eClient.mjs')).href);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** An operator card, in either of the panel's two views (立绘 cards / 名字 rows). */
@@ -151,7 +151,9 @@ try {
       return p.hand.filter(Boolean).length;
     });
     await solo.click('.spmod-tab', null, { nth: 0 });     // 回到干员页签
-    await solo.click('.spmod-segbtn', null, { nth: 1 });  // 直购
+    // by name, not by position: the panel's page tabs (商店 / 沙盒 / 自选位 / 开关) are segbtns too, and they come
+    // first in the document — an index would land on 沙盒 and take the whole shop page away with it.
+    await solo.click('.spmod-segbtn', '直购');
     const id = await solo.page.$$eval(CARD, (els) => els[0]?.getAttribute('data-id'));
     assert.ok(id, '没有可点的卡');
     await solo.click(`[data-id="${id}"]`);

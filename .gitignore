@@ -1,6 +1,8 @@
 # 运行时产物
 node_modules/
 logs/
+# test/helpers/e2eClient.mjs 把浏览器自检的截图落在这里（upstream 的 test/e2e/out 的落点）
+test/e2e/
 
 # 求解器是另一条研究线，不属于这个工具
 solver/

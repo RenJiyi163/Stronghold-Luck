@@ -24,7 +24,7 @@ import { AUTO_CARDS, AUTO_CLASS_HINT, AUTO_CLASS_LABEL, AUTO_DEFAULT_IDS } from 
 import { createUnitPatcher, MULT_FIELDS, normalizeUnitCfg, SCOPE_LABEL, UNIT_FIELDS, UNIT_SCOPES, unitCovers } from './unit-rules.js';
 import {
   createSlotPatcher, extraDiyData, extraDiyTable, extraSlotId, EXTRA_TIERS, isExtraSlotId, MAX_EXTRA_SLOTS,
-  normalizeSlotCfg, patchGameData, slotBaseId,
+  normalizeSlotCfg, patchContentSeam, patchGameData, slotBaseId,
 } from './slot-rules.js';
 
 const PICK = 'g.modPick';
@@ -803,25 +803,29 @@ async function patchSimBands() {
       import('/sim/Battle.js'), import('/sim/content/bands.js'), import('/sim/content/support/index.js'),
     ]);
     const Battle = b?.Battle;
-    if (typeof Battle?.prototype?._safe !== 'function') return;
-    const origSafe = Battle.prototype._safe;
-    Battle.prototype._safe = function _safe(fn, label, owner) {
-      if (label !== 'installContent') return origSafe.call(this, fn, label, owner);
-      // the 自选位 numbers: the content modules read `bb` from support.gameData(), so a swap bracketing the install is
-      // what reaches them (the same seam the server patch uses; see slot-rules.patchGameData). The installed records are
-      // captured by every installer at this moment and re-applied from their closures, so restoring right after is safe.
-      const base = typeof support?.gameData === 'function' ? support.gameData() : null;
-      const patched = base ? patchGameData(diyPatcher.entries(), base) : base;
-      const swapped = !!(patched && patched !== base);
-      if (swapped) support.setGameData(patched);
-      try {
-        const res = origSafe.call(this, fn, label, owner);
-        try { installExtraBands(this, n); } catch (e) { console.warn('[luck] battle-side extra strategies failed', e); }
-        return res;
-      } finally {
-        if (swapped) support.setGameData(base);
-      }
-    };
+    if (!Battle?.prototype) return;
+    // Both halves of the seam, in the order they have to run: the extras go in while the 自选位 numbers are still
+    // swapped in, and the swap unwinds last. The bracket itself is slot-rules.patchContentSeam — 0.3.0 calls
+    // installContent straight from the Battle constructor, so the `_safe('installContent')` wrapper this used to be
+    // never fires any more.
+    const swapStack = [];
+    const ok = patchContentSeam(Battle, {
+      beforeInstall: () => {
+        // the content modules read `bb` from support.gameData(), so a swap bracketing the install is what reaches them
+        // (see slot-rules.patchGameData). Every installer captures its records at this moment and re-applies from the
+        // closure, so restoring right after is safe.
+        const base = typeof support?.gameData === 'function' ? support.gameData() : null;
+        const patched = base ? patchGameData(diyPatcher.entries(), base) : base;
+        swapStack.push(base);
+        if (patched && patched !== base) support.setGameData(patched);
+      },
+      afterInstall: (battle) => {
+        try { installExtraBands(battle, n); } catch (e) { console.warn('[luck] battle-side extra strategies failed', e); }
+        const base = swapStack.pop();
+        if (base !== undefined && base !== null) support?.setGameData?.(base);
+      },
+    });
+    if (!ok) { console.warn('[luck] sim band patch failed: the Battle class has no content seam'); return; }
     console.info('[luck] sim band patch ready');
   } catch (e) {
     console.warn('[luck] sim band patch failed', e);

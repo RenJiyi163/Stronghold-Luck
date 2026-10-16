@@ -22,8 +22,8 @@ android {
         applicationId = "com.strongholdluck.android"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.1.4"
+        versionCode = 3
+        versionName = "0.1.5"
         ndk { abiFilters += "arm64-v8a" }
     }
 
