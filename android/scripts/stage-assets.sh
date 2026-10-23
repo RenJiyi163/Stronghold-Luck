@@ -10,7 +10,7 @@
 # android/app/src/main/java/com/strongholdluck/android/GamePack.kt (which picks the release to download).
 set -euo pipefail
 
-GAME_VERSION="${GAME_VERSION:-0.3.0}"
+GAME_VERSION="${GAME_VERSION:-0.3.1}"
 
 ANDROID_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_DIR="$(cd "$ANDROID_DIR/.." && pwd)"

@@ -2544,6 +2544,11 @@ function renderDiy() {
   if (!(!!priv.shop?.modPickable || Number.isFinite(Number(priv.modSpeed)))) return;
   const key = `${pub.stageId || ''}|${pub.modeId || ''}`;
   if (diyPushedFor === key) return;
+  // A page that has just reloaded gets its first private view before data/backups.json has landed, and the game's own
+  // four slots are read from that file (`allSlots`). A push made now would leave them out, and the one-per-match flag
+  // would make that the final word. Wait for the file; `missing` means it will not come, so push whatever is there.
+  const backups = data.status?.('backups');
+  if (Object.keys(local.diy.slots).length && backups !== 'ready' && backups !== 'missing') return;
   diyPushedFor = key;
   sendDiy();
 }

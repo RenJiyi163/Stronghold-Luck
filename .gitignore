@@ -7,6 +7,9 @@ test/e2e/
 # 求解器是另一条研究线，不属于这个工具
 solver/
 
+# 皮肤插件的一次性抓取脚本与其 400 MB 素材，留在本机，不入库
+tools/skins-fetch/
+
 # 杂项
 *.log
 *.tmp

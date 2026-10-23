@@ -24,7 +24,7 @@ Windows 双击 `start.cmd`，macOS / Linux 跑 `./start.sh`，浏览器会自动
 - 改 `mod.config.json` 的 `gameRoot`（JSON 里反斜杠写两个：`"E:\\Games\\Stronghold-Protocol"`）；
 - 命令行 `node src/launcher.mjs --game "E:\Games\Stronghold-Protocol"`。
 
-**它会认游戏版本。** 不是 0.3.0 时启动时打一行提醒；上游改过锚点的话，面板会整块不出现（见「游戏更新了怎么办」）。
+**它会认游戏版本。** 不是 0.3.1 时启动时打一行提醒；上游改过锚点的话，面板会整块不出现（见「游戏更新了怎么办」）。
 
 命令行也行：
 
@@ -347,7 +347,7 @@ test/                  三层自检
 **这个游戏不会自动更新，也没有版本检查。** 它联网只做一件事：`tools/build-data.mjs`、`tools/fetch-assets.mjs` 去 `raw.githubusercontent.com` 拉**游戏素材和数据表**（跟代码仓库本身无关）。所以更新完全靠你自己去 GitHub 看：
 
 - 仓库：`https://github.com/sganggs/Stronghold-Protocol`（Releases 里的整合包 / 或者你自己 `git pull`）
-- 本地这份是 **0.3.0**，`package.json` 里的 `version` 就是当前版本号。
+- 本地这份是 **0.3.1**，`package.json` 里的 `version` 就是当前版本号。
 
 **更新之后**：把游戏目录换掉（或 pull），然后**重新双击 `start.cmd`** 就行。绝大多数情况下外挂不需要任何改动，因为它一个字节都没写进游戏目录。只有在控制台出现 `anchors not found` 时才需要改 `src/server-patch.mjs`：它会告诉你是哪个锚点没了。
 
@@ -395,7 +395,7 @@ node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌�
   adb push <游戏目录>/public/assets  /data/data/com.strongholdluck.android/files/game/public/
   adb push <游戏目录>/public/fonts   /data/data/com.strongholdluck.android/files/game/public/
   adb push <游戏目录>/data/local-assets.json /data/data/com.strongholdluck.android/files/game/data/
-  adb shell "echo -n 0.3.0 > /data/data/com.strongholdluck.android/files/game/.assets-ready"
+  adb shell "echo -n 0.3.1 > /data/data/com.strongholdluck.android/files/game/.assets-ready"
   adb shell "chown -R 10051:10051 /data/data/com.strongholdluck.android/files && restorecon -R /data/data/com.strongholdluck.android/files"
   ```
   （`10051` 是应用的 uid（`u0_a51`），核一下用 `adb shell pm list packages -U | grep strongholdluck`。`.code-ready` 由应用自己写。）
