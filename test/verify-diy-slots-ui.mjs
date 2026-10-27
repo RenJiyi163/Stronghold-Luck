@@ -125,7 +125,7 @@ try {
     .then(() => 'ok', (e) => String(e?.detail || e?.code || e)), PICKS);
   assert.equal(set, 'ok', `room.diy 被拒：${set}`);
 
-  await clickText('^开始模拟$');
+  await clickText('开始模拟');
   reached = await waitPhase('INFO_CHECK', 40000);
   if (!reached) throw new Error('没进到开局简报');
   await sleep(800);

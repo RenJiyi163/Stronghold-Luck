@@ -24,7 +24,7 @@ Windows 双击 `start.cmd`，macOS / Linux 跑 `./start.sh`，浏览器会自动
 - 改 `mod.config.json` 的 `gameRoot`（JSON 里反斜杠写两个：`"E:\\Games\\Stronghold-Protocol"`）；
 - 命令行 `node src/launcher.mjs --game "E:\Games\Stronghold-Protocol"`。
 
-**它会认游戏版本。** 不是 0.3.1 时启动时打一行提醒；上游改过锚点的话，面板会整块不出现（见「游戏更新了怎么办」）。
+**它会认游戏版本。** 不是 0.3.3 时启动时打一行提醒；上游改过锚点的话，面板会整块不出现（见「游戏更新了怎么办」）。
 
 命令行也行：
 
@@ -347,7 +347,7 @@ test/                  三层自检
 **这个游戏不会自动更新，也没有版本检查。** 它联网只做一件事：`tools/build-data.mjs`、`tools/fetch-assets.mjs` 去 `raw.githubusercontent.com` 拉**游戏素材和数据表**（跟代码仓库本身无关）。所以更新完全靠你自己去 GitHub 看：
 
 - 仓库：`https://github.com/sganggs/Stronghold-Protocol`（Releases 里的整合包 / 或者你自己 `git pull`）
-- 本地这份是 **0.3.1**，`package.json` 里的 `version` 就是当前版本号。
+- 本地这份是 **0.3.3**，`package.json` 里的 `version` 就是当前版本号。
 
 **更新之后**：把游戏目录换掉（或 pull），然后**重新双击 `start.cmd`** 就行。绝大多数情况下外挂不需要任何改动，因为它一个字节都没写进游戏目录。只有在控制台出现 `anchors not found` 时才需要改 `src/server-patch.mjs`：它会告诉你是哪个锚点没了。
 
@@ -362,20 +362,20 @@ test/                  三层自检
 ```
 node test/verify.mjs         # 引擎层：用外挂自带的测试脚手架（test/helpers/harness.mjs）跑真实对局，55 项
 node test/verify-e2e.mjs     # 端到端：真起启动器，走 HTTP + WebSocket 打一局，23 项
-node test/verify-ui.mjs      # 真浏览器（无头 Chrome）点一局，26 项；含战斗中途切倍速，顺带验补丁失效时面板会自己隐藏
-node test/verify-diy-ui.mjs   # 真浏览器：当场配一份自选编队再打一局，验自选干员的列出、等级门槛、两种视图与四个尺寸，15 项
+node test/verify-ui.mjs      # 真浏览器（无头 Chrome）点一局，31 项；含战斗中途切倍速，顺带验补丁失效时面板会自己隐藏
+node test/verify-diy-ui.mjs   # 真浏览器：当场配一份自选编队再打一局，验自选干员的列出、等级门槛、两种视图与四个尺寸，16 项
 node test/verify-sandbox-ui.mjs # 真浏览器：叠策略（含效果真的跑到的正面证据）、地块解锁的阴性对照与回合切换后不被撤回，18 项
-node test/verify-unit-ui.mjs  # 真浏览器：改技能/技力/属性，含三档作用目标、别的干员不动的阴性对照，以及开战后那颗棋子真的带着新数值，12 项
-node test/verify-pace-ui.mjs  # 真浏览器：装备不占额度（含阴性对照），以及结算等待在 2× 是 3 秒、8× 缩到四分之一，8 项
-node test/verify-shopfilter-ui.mjs # 真浏览器：阵营锁（盟约多选、包含/仅限两种读数各验一遍、阴性对照、只管自动刷新、自选列表不受限），10 项
-node test/verify-duck-extra.mjs    # 无头：鸭爵当副策略时也换敌（真 dispatch + 桩 match），6 项
-node test/verify-diy-slots.mjs     # 无头：自选位的盟约 / 特质 / 数值，自造位子，以及总开关的撤回（真 GameData + DataSource + setDiy，桩 match），25 项
-node test/verify-auto.mjs          # 无头真引擎：自动买卖走商店那条路（含总开关全关照跑、直购被拒、多目标共用一轮、免费刷与收费刷两套：闸门、抓什么、滚到什么时候停、买卖不亏的牌），9 项
-node test/verify-auto-ui.mjs       # 真浏览器：目标勾选表（只列本局协议里的卡、默认勾选、勾/取消跟着计数走、空勾选锁住启动键、点启动后服务端收到的就是勾的那几张），6 项
-node test/verify-diy-slots-ui.mjs  # 真浏览器：面板上配盟约 / 特质 / 数值，全选与默认，加自造位子并按阶挑人，把 1 阶自造位子买下来摆上场看盟约栏，再从「开关」页关掉自选位（以及自造位子）看服务端撤回与画面同步，29 项
-node test/verify-findgame.mjs      # 无头：游戏目录的探测与配置写回（整棵树造在系统临时目录里，不碰真游戏），8 项
-node test/verify-pickgame.mjs      # 无头：选目录用的 PowerShell 脚本（拿 PowerShell 自己的解析器查语法，不真弹框），3 项
-node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌面阴性对照、1100×620、844×390 真视口的字号与点击目标、文字大小跟随、换小视口后尺寸重新收进视口、面板张开时悬浮条让位），8 项；加 --shot <文件> 存一张手机视口的截图
+node test/verify-unit-ui.mjs  # 真浏览器：改技能/技力/属性，含三档作用目标、别的干员不动的阴性对照，以及开战后那颗棋子真的带着新数值，13 项
+node test/verify-pace-ui.mjs  # 真浏览器：装备不占额度（含阴性对照），以及结算等待在 2× 是 3 秒、8× 缩到四分之一，9 项
+node test/verify-shopfilter-ui.mjs # 真浏览器：阵营锁（盟约多选、包含/仅限两种读数各验一遍、阴性对照、只管自动刷新、自选列表不受限），11 项
+node test/verify-duck-extra.mjs    # 无头：鸭爵当副策略时也换敌（真 dispatch + 桩 match），7 项
+node test/verify-diy-slots.mjs     # 无头：自选位的盟约 / 特质 / 数值，自造位子，以及总开关的撤回（真 GameData + DataSource + setDiy，桩 match），26 项
+node test/verify-auto.mjs          # 无头真引擎：自动买卖走商店那条路（含总开关全关照跑、直购被拒、多目标共用一轮、免费刷与收费刷两套：闸门、抓什么、滚到什么时候停、买卖不亏的牌），10 项
+node test/verify-auto-ui.mjs       # 真浏览器：目标勾选表（只列本局协议里的卡、默认勾选、勾/取消跟着计数走、空勾选锁住启动键、点启动后服务端收到的就是勾的那几张），7 项
+node test/verify-diy-slots-ui.mjs  # 真浏览器：面板上配盟约 / 特质 / 数值，全选与默认，加自造位子并按阶挑人，把 1 阶自造位子买下来摆上场看盟约栏，再从「开关」页关掉自选位（以及自造位子）看服务端撤回与画面同步，30 项
+node test/verify-findgame.mjs      # 无头：游戏目录的探测与配置写回（整棵树造在系统临时目录里，不碰真游戏），9 项
+node test/verify-pickgame.mjs      # 无头：选目录用的 PowerShell 脚本（拿 PowerShell 自己的解析器查语法，不真弹框），4 项
+node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌面阴性对照、1100×620、844×390 真视口的字号与点击目标、文字大小跟随、换小视口后尺寸重新收进视口、面板张开时悬浮条让位），9 项；加 --shot <文件> 存一张手机视口的截图
 ```
 
 前三个原先借的是游戏自带的 `test/` 目录（对局脚手架与 e2e 客户端）。**上游在 0.3.0 把整个 `test/` 从发布包里删了**（只剩 `test/helpers/battleHarness.js`，那只造战斗、不造对局），所以这一份改用它自带的 `test/helpers/`：`harness.mjs`（对局）、`wsClient.js`（WebSocket 测试客户端）、`e2eClient.mjs`（真浏览器客户端），都是从 v0.2.6 原样抄过来的，只把 import 的落点改到游戏目录。这三样在仓库里，随外挂一起走，从压缩包装的游戏也跑得起来。
@@ -395,7 +395,7 @@ node test/verify-mobile-ui.mjs     # 真浏览器：小屏与触屏布局（桌�
   adb push <游戏目录>/public/assets  /data/data/com.strongholdluck.android/files/game/public/
   adb push <游戏目录>/public/fonts   /data/data/com.strongholdluck.android/files/game/public/
   adb push <游戏目录>/data/local-assets.json /data/data/com.strongholdluck.android/files/game/data/
-  adb shell "echo -n 0.3.1 > /data/data/com.strongholdluck.android/files/game/.assets-ready"
+  adb shell "echo -n 0.3.3 > /data/data/com.strongholdluck.android/files/game/.assets-ready"
   adb shell "chown -R 10051:10051 /data/data/com.strongholdluck.android/files && restorecon -R /data/data/com.strongholdluck.android/files"
   ```
   （`10051` 是应用的 uid（`u0_a51`），核一下用 `adb shell pm list packages -U | grep strongholdluck`。`.code-ready` 由应用自己写。）

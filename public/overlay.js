@@ -412,7 +412,12 @@ function resetPositions() {
 //     the UI falls back to the legend, and tiles a device took away are left alone.
 
 const SB_KEY = 'spmod.sandbox';
-const DEPLOY_UNLOCK = '__luckDeployUnlock';
+// 0.3.2 起 simLoader 会把 data.js 交出来的 stages / tokens 深冻结，记录本身不能再写。解锁不改原件：
+// 打开时 data.lookup / list / get 交出按记录 id 缓存的「放宽版」副本，关掉时原样交回冻结记录。
+const deployUnlock = { on: false };
+const deployStageCopies = new WeakMap();
+const deployTokenCopies = new WeakMap();
+const deployFileCopies = new WeakMap();
 
 function loadSandboxPrefs() {
   try {
@@ -443,40 +448,74 @@ function saveSandboxPrefs() {
  *   2. `rangedTilesOnly` on the summon records — those tokens are the only pieces the client can still call 'HIGH',
  *      and 'HIGH' needs a ranged-ONLY tile, which no longer exists.
  */
-function applyDeployUnlock(on) {
-  for (const st of data.list('stages')) {
-    if (!st || typeof st !== 'object') continue;
-    if (on) {
-      if (!st[DEPLOY_UNLOCK]) st[DEPLOY_UNLOCK] = { tiles: st.tiles, deployTiles: st.deployTiles };
-      const legend = st[DEPLOY_UNLOCK].tiles;
-      if (legend && typeof legend === 'object') {
-        const next = {};
-        for (const [g, t] of Object.entries(legend)) {
-          next[g] = t && typeof t === 'object' && (t.buildable !== 'ALL' || t.height !== 'LOW')
-            ? { ...t, buildable: 'ALL', height: 'LOW' }
-            : t;
-        }
-        st.tiles = next;
-      }
-      st.deployTiles = null; // deploySets then derives from the legend instead of the prebuilt list
-    } else if (st[DEPLOY_UNLOCK]) {
-      st.tiles = st[DEPLOY_UNLOCK].tiles;
-      st.deployTiles = st[DEPLOY_UNLOCK].deployTiles;
-      delete st[DEPLOY_UNLOCK];
+/** The mutable copy of one stage record, cached by original object so every reader sees the same identity. */
+function deployUnlockedStage(st) {
+  if (!deployUnlock.on || !st || typeof st !== 'object') return st;
+  const hit = deployStageCopies.get(st);
+  if (hit) return hit;
+  const next = { ...st };
+  const legend = st.tiles;
+  if (legend && typeof legend === 'object') {
+    const tiles = {};
+    for (const [g, t] of Object.entries(legend)) {
+      tiles[g] = t && typeof t === 'object' && (t.buildable !== 'ALL' || t.height !== 'LOW')
+        ? { ...t, buildable: 'ALL', height: 'LOW' }
+        : t;
     }
+    next.tiles = tiles;
   }
-  for (const t of data.list('tokens')) {
-    if (!t || typeof t !== 'object') continue;
-    if (on) {
-      if (!t[DEPLOY_UNLOCK]) t[DEPLOY_UNLOCK] = { rangedTilesOnly: t.rangedTilesOnly };
-      if (t.rangedTilesOnly === true) t.rangedTilesOnly = false;
-    } else if (t[DEPLOY_UNLOCK]) {
-      t.rangedTilesOnly = t[DEPLOY_UNLOCK].rangedTilesOnly;
-      delete t[DEPLOY_UNLOCK];
-    }
-  }
+  next.deployTiles = null; // deploySets then derives from the legend instead of the prebuilt list
+  deployStageCopies.set(st, next);
+  return next;
 }
 
+/** Summon records: only the ranged-only flag has to change, and only on the ones that carry it. */
+function deployUnlockedToken(t) {
+  if (!deployUnlock.on || !t || typeof t !== 'object' || t.rangedTilesOnly !== true) return t;
+  const hit = deployTokenCopies.get(t);
+  if (hit) return hit;
+  const next = { ...t, rangedTilesOnly: false };
+  deployTokenCopies.set(t, next);
+  return next;
+}
+
+function deployUnlockedRecord(name, rec) {
+  if (!deployUnlock.on) return rec;
+  if (name === 'stages') return deployUnlockedStage(rec);
+  if (name === 'tokens') return deployUnlockedToken(rec);
+  return rec;
+}
+
+/** A whole stages/tokens file (data.get) with every record replaced by its stable unlocked copy. */
+const DEPLOY_UNLOCK_FILES = new Set(['stages', 'tokens']);
+const DEPLOY_UNLOCK_CONTAINERS = new Set(['list', 'data', 'records', 'entries']);
+function deployUnlockedFile(name, value) {
+  if (!deployUnlock.on || !DEPLOY_UNLOCK_FILES.has(name) || !value || typeof value !== 'object') return value;
+  const hit = deployFileCopies.get(value);
+  if (hit && hit.name === name) return hit.out;
+  let out;
+  if (Array.isArray(value)) out = value.map((rec) => deployUnlockedRecord(name, rec));
+  else {
+    out = {};
+    for (const [k, rec] of Object.entries(value)) {
+      if (Array.isArray(rec)) out[k] = rec.map((x) => deployUnlockedRecord(name, x));
+      else if (rec && typeof rec === 'object' && (DEPLOY_UNLOCK_CONTAINERS.has(k) || k === name)) out[k] = deployUnlockedFile(name, rec);
+      else out[k] = deployUnlockedRecord(name, rec);
+    }
+  }
+  deployFileCopies.set(value, { name, out });
+  return out;
+}
+
+/**
+ * Turn the deploy unlock on/off for this browser. The game's own records are frozen from 0.3.2 on, so nothing is
+ * written into them: patchDataStore's wrappers hand out the widened copies while `on` is true (and the original,
+ * frozen records again the moment it goes off). `deploySets` / `effectiveStage` then derive the drag mirror from
+ * the widened legend exactly like before.
+ */
+function applyDeployUnlock(on) {
+  deployUnlock.on = !!on;
+}
 function sendBands() {
   const pool = new Set(local.sb.pool || []);
   const ids = local.sb.bands.filter((id) => pool.size === 0 || pool.has(id));
@@ -2134,16 +2173,19 @@ function patchDataStore() {
     backupsMerge = { gen: extraGen, base: v, sig, out };
     return out;
   };
-  data.get = (name) => (name === 'chess' ? mergeChess(origGet.call(data, name))
+  data.get = (name) => deployUnlockedFile(name, name === 'chess' ? mergeChess(origGet.call(data, name))
     : name === 'backups' ? mergeBackups(origGet.call(data, name)) : origGet.call(data, name));
   data.getRaw = (name) => (name === 'chess' ? mergeChess(origGetRaw.call(data, name))
     : name === 'backups' ? mergeBackups(origGetRaw.call(data, name)) : origGetRaw.call(data, name));
-  data.lookup = (name, id) => (name === 'chess' ? (extraChess()?.[id] ?? origLookup.call(data, name, id))
+  data.lookup = (name, id) => deployUnlockedRecord(name, name === 'chess' ? (extraChess()?.[id] ?? origLookup.call(data, name, id))
     : origLookup.call(data, name, id));
   if (typeof origList === 'function') {
-    data.list = (name) => (name === 'chess'
-      ? Object.values(mergeChess(origGet.call(data, name)) || {})
-      : origList.call(data, name));
+    data.list = (name) => {
+      if (name === 'chess') return Object.values(mergeChess(origGet.call(data, name)) || {});
+      const list = origList.call(data, name);
+      if (!deployUnlock.on || (name !== 'stages' && name !== 'tokens')) return list;
+      return list.map((rec) => deployUnlockedRecord(name, rec));
+    };
   }
   console.info('[luck] data store patched (更多位子)');
 }

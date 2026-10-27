@@ -109,7 +109,7 @@ try {
     .then(() => 'ok', (e) => String(e?.detail || e?.code || e)), PICKS);
   await check('房间接受自选编队（room.diy）', () => assert.equal(set, 'ok'));
 
-  await clickText('^开始模拟$');
+  await clickText('开始模拟');
   reached = await waitPhase('INFO_CHECK', 40000);
   if (!reached) throw new Error('没进到开局简报');
   await sleep(800);

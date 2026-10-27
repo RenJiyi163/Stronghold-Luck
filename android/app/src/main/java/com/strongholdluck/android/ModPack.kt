@@ -11,7 +11,7 @@ object ModPack {
     private const val MARK = ".staged-version"
 
     /** Bumped by hand whenever the shipped mod changes; a new value re-unpacks on the next launch. */
-    const val VERSION = "0.1.5"
+    const val VERSION = "0.1.7"
 
     fun dir(ctx: Context): File = File(ctx.filesDir, "mod")
 

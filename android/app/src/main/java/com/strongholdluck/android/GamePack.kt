@@ -26,7 +26,7 @@ object GamePack {
 
     /** The upstream release this build was assembled against. Must match EXPECTED_GAME_VERSION in
      *  src/launcher.mjs and GAME_VERSION in android/scripts/stage-assets.sh. */
-    const val GAME_VERSION = "0.3.1"
+    const val GAME_VERSION = "0.3.3"
 
     private const val ZIP_NAME = "Stronghold-Protocol-v$GAME_VERSION.zip"
     private const val RELEASE = "https://github.com/sganggs/Stronghold-Protocol/releases/download/v$GAME_VERSION/$ZIP_NAME"

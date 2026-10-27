@@ -93,7 +93,7 @@ try {
   await sleep(400);
   await clickText('开始独立模拟');
   await sleep(2500);
-  await clickText('^开始模拟$');
+  await clickText('开始模拟');
   assert.ok(await waitPhase('INFO_CHECK', 40000), '没进到开局简报');
   await sleep(800);
   await clickText('准备就绪');
