@@ -101,7 +101,8 @@ try {
   const { TestClient } = await import(pathToFileURL(path.join(HERE, 'helpers', 'wsClient.js')).href);
   const c = await TestClient.connect(`ws://127.0.0.1:${port}/ws`, { timeout: 8000 });
   await c.hello('LuckTest');
-  await c.request({ t: 'room.create', mode: 'solo', difficulty: 'FUNNY' });
+  // 0.4.0 起不带 version 的 room.create 落到规程（对局进程、另一套阶段）。这条仍锁第二期下半，下面的 modeId 断言才成立。
+  await c.request({ t: 'room.create', mode: 'solo', difficulty: 'FUNNY', version: 'act2autochess' });
   await c.waitFor('room.state');
 
   const start = await c.request({ t: 'room.start' });
@@ -234,6 +235,48 @@ console.log('\n[记录]');
   });
 
   await c.close();
+
+  // 规程跑在另开的对局进程里。大厅现在默认就是这一版，补丁没交进那个进程时 modPickable 不会出现。
+  console.log('\n[规程·序列Ⅰ（对局进程）]');
+  const reg = await TestClient.connect(`ws://127.0.0.1:${port}/ws`, { timeout: 8000 });
+  await reg.hello('LuckReg');
+  await check('规程房间能建起来', async () => {
+    const created = await reg.request({ t: 'room.create', mode: 'solo', difficulty: 'FUNNY', version: 'act3autochess@V3_1' });
+    assert.equal(created.t, 'ok', JSON.stringify(created));
+    const st = await reg.waitFor('room.state', (m) => m.version === 'act3autochess@V3_1' && m.content?.cs, 8000);
+    assert.equal(st.modeId, 'mode_single_1', `modeId=${st.modeId}`);
+    const ready = await reg.request({ t: 'room.contentReady', cs: st.content.cs });
+    assert.equal(ready.t, 'ok', JSON.stringify(ready));
+    const started = await reg.request({ t: 'room.start' });
+    assert.equal(started.t, 'ok', JSON.stringify(started));
+  });
+  await check('规程对局进程里商店带 modPickable，自选写得进槽', async () => {
+    await reg.waitFor('m.public', (m) => m.phase === 'INFO_CHECK', 45000);
+    const info = await reg.request({ t: 'g.infoReady' });
+    assert.equal(info.t, 'ok', `g.infoReady ${JSON.stringify(info)}`);
+    await reg.waitFor('m.public', (m) => m.phase === 'BAND_DRAFT', 15000);
+    // 规程的策略表里没有华法琳（band_bldsk）。阿米娅在规程等级 1 里是允许的。
+    const band = await reg.request({ t: 'g.band', bandId: 'band_amiya' });
+    assert.equal(band.t, 'ok', `g.band ${JSON.stringify(band)}`);
+    await reg.waitFor('m.public', (m) => m.phase === 'CUSTOM_CHECK', 15000);
+    const bring = await reg.request({ t: 'g.diyBring', slots: [] });
+    assert.equal(bring.t, 'ok', `g.diyBring ${JSON.stringify(bring)}`);
+    await reg.waitFor('m.public', (m) => m.phase === 'PREP', 20000);
+    // 开局确认前发出的私人视图用的是羁绊组选定之前的卡池。waitFor 取信箱里第一帧符合条件的，
+    // 那一帧里的最后一名干员可能随后被禁用，g.modPick 就回「卡池里没有多余的该干员」。
+    // 商店槽要到 startRound 才滚出来，那时卡池已经按所选羁绊组重建过。
+    const prep = await reg.waitFor('m.private', (m) => {
+      const slots = m.shop?.slots;
+      return Array.isArray(slots) && slots.some(Boolean) && m.shop?.modPickable?.chess?.length > 0;
+    }, 8000);
+    const id = prep.shop.modPickable.chess[prep.shop.modPickable.chess.length - 1];
+    const picked = await reg.request({ t: 'g.modPick', slot: 0, id });
+    assert.equal(picked.t, 'ok', `id=${id} ${JSON.stringify(picked)}`);
+    const after = await reg.waitFor('m.private', (m) => m.shop?.slots?.[0]?.id === id, 8000);
+    assert.equal(after.shop.slots[0].sold, false);
+  });
+  await reg.close();
+
   console.log(`\n结果：${pass} 通过，${fail} 失败\n`);
 } catch (e) {
   fail++;

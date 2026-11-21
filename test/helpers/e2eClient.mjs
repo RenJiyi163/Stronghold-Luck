@@ -162,6 +162,18 @@ export class Client {
     });
     page.on('response', (r) => { if (r.status() >= 400) this.problems.push(`http ${r.status()}: ${r.url()}`); });
     page.on('dialog', (d) => d.dismiss().catch(() => {}));
+    // 0.4.0 plays an opening over the title (ui/entryFilm.js) and, the first time this version is seen,
+    // opens 更新说明 on top of the callsign field (ui/releaseNotes.js, key sp.pref.release-seen.<version>).
+    // The game's own browser suites turn the film off before load. Marking every release as seen keeps
+    // that modal from covering the field; the key includes the version, which this page has not loaded yet.
+    await page.evaluateOnNewDocument(() => {
+      globalThis.__SP_ENTRY_FILM__ = 'off';
+      const orig = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (key) {
+        if (typeof key === 'string' && key.startsWith('sp.pref.release-seen.')) return '1';
+        return orig.call(this, key);
+      };
+    });
     await page.goto(`${this.base}/${query}`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => !!globalThis.__SP__ && !!document.querySelector('.screen'), { timeout: 30000 });
   }

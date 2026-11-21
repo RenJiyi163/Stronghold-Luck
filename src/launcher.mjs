@@ -163,7 +163,7 @@ async function resolveGameRoot() {
 
 // 这份外挂是照哪个游戏版本写的。上游改了锚点，面板会自己隐藏（README「游戏更新了怎么办」）。
 // 先把版本号比一遍，用户就不用对着一个不亮的面板猜。
-const EXPECTED_GAME_VERSION = '0.3.3';
+const EXPECTED_GAME_VERSION = '0.4.0';
 
 function checkGameVersion(gameRoot) {
   let version = null;
@@ -230,9 +230,25 @@ if (args.vanilla || args.noPatch) {
 
 const { startServer } = await import(pathToFileURL(path.join(gameRoot, 'server', 'index.js')).href);
 
+// 第二期下半的对局就在这个进程里，上面的 installServerPatch 盖得住。规程（0.4.0 起的大厅默认）以及另外三个
+// 官方版本在游戏另开的对局进程里跑，那份模块表是新的。把同一份补丁交给那个进程，否则商店视图里没有
+// modPickable，面板整块不出现，启动日志也不报 anchors not found。
+const serverOpts = {
+  port: 0, host: '127.0.0.1', quiet: true,
+  log: { info: () => {}, warn: () => {}, error: (...a) => log.error('[game]', ...a), debug: () => {} },
+};
+if (!args.vanilla && !args.noPatch) {
+  process.env.SP_LUCK_GAME = gameRoot;
+  process.env.SP_LUCK_PICK_LIMIT = String(pickLimit);
+  process.env.SP_LUCK_SPEED = String(combatSpeed);
+  process.env.SP_LUCK_RECORD = record ? '1' : '0';
+  if (args.logDir) process.env.SP_LUCK_LOG_DIR = String(args.logDir);
+  serverOpts.matchHost = { matchModule: path.join(HERE, 'host-match.mjs') };
+}
+
 let inner;
 try {
-  inner = await startServer({ port: 0, host: '127.0.0.1', quiet: true, log: { info: () => {}, warn: () => {}, error: (...a) => log.error('[game]', ...a), debug: () => {} } });
+  inner = await startServer(serverOpts);
 } catch (e) {
   log.error('游戏服务器启动失败：', e);
   process.exit(1);

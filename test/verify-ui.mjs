@@ -76,20 +76,43 @@ async function waitUp(srv) {
   throw new Error(`启动器没起来：\n${srv.out.slice(-1500)}`);
 }
 
-/** Title → 独立模拟/标准模拟 → start → briefing → draft → first PREP. */
+/** Title → 独立模拟 → start → briefing → draft → first PREP.
+ *  0.4.0 大厅默认是规程：协议选择是阶梯（极速模拟，以及规程等级），开局简报要先激活一组核心盟约，
+ *  策略确认之后还有选择自编。第二期下半仍是四张难度卡，没有这两步。 */
 async function toFirstPrep(c) {
   await c.open();
   await c.enter('杜宾');
   await c.click('.mode-card', '独立模拟');
-  await c.click('.diff-card', '标准模拟');
+  // 版本数据还在载入时，难度卡是禁用的；载入后规程换成阶梯，第二期下半才是「标准模拟」。
+  const proto = await c.page.waitForFunction(() => {
+    const enabled = (el) => el && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
+    const ladder = document.querySelector('[data-testid="proto-ladder"]');
+    if (ladder && [...ladder.querySelectorAll('button')].some(enabled)) return 'ladder';
+    const card = [...document.querySelectorAll('.diff-card')].find((el) => enabled(el) && (el.textContent || '').includes('标准模拟'));
+    return card ? 'cards' : false;
+  }, { timeout: 30000 }).then((h) => h.jsonValue());
+  if (proto === 'ladder') await c.click('.diff-card', '极速模拟');
+  else await c.click('.diff-card', '标准模拟');
   await c.click('.create-box button', '开始独立模拟');
   await c.waitFor((s) => !!s.room, 'solo room');
-  if (!(await c.st()).phase) await c.click('.room-bar__right button', '开始模拟');
-  await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
-  await c.click('.brief__foot .btn--primary', '准备就绪');
+  if (!(await c.st()).phase) await c.click('.room-bar__right button', '开始模拟', { timeout: 60000 });
+  await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 45000);
+  // 规程把「激活第 1 组」放在左侧滚动栏里，阶段一切过来它还没画上，也不在视口里。
+  const group = await c.page.waitForSelector('[data-testid="bond-group-0"]', { timeout: 8000 }).then(() => true, () => false);
+  if (group) {
+    await c.page.evaluate(() => document.querySelector('[data-testid="bond-group-0"]').scrollIntoView({ block: 'center' }));
+    const hit = await c.click('[data-testid="bond-group-0"]', null, { timeout: 4000, optional: true });
+    if (!hit) await c.page.evaluate(() => document.querySelector('[data-testid="bond-group-0"]').click());
+    await c.page.waitForFunction(() => !document.querySelector('[data-testid="bond-group-0"]'), { timeout: 8000 });
+  }
+  // 规程的准备就绪在右侧栏 .reg-ready，不在 .brief__foot。
+  if (await c.exists('.reg-ready .btn--primary')) await c.click('.reg-ready .btn--primary', '准备就绪', { timeout: 20000 });
+  else await c.click('.brief__foot .btn--primary', '准备就绪', { timeout: 20000 });
   await c.waitFor((s) => s.phase === 'BAND_DRAFT', 'band draft', 30000);
   await c.click('.dband', null, { nth: 1 });
   await c.click('.draft-detail__btns .btn--primary', '确认选择');
+  const after = await c.waitFor((s) => s.phase === 'CUSTOM_CHECK' || s.phase === 'BATTLE_CHECK' || (s.phase === 'PREP' && !s.ready), 'after draft', 30000);
+  if (after.phase === 'CUSTOM_CHECK') await c.click('[data-testid="diy-check-none"]', '不带入自选');
   await c.waitFor((s) => s.phase === 'PREP' && !s.ready, 'prep 1', 60000);
   await sleep(1200);
   return c;
